@@ -14,9 +14,6 @@ public:
         // Fill background
         g.fillAll(juce::Colour(56, 0, 61));
 
-        // Fill the main content area
-//        g.fillRect(0, 0, getWidth(), getHeight());
-
         drawGrid(g);
 
         // Draw both melodies with new colors
