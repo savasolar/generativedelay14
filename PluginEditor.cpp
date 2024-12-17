@@ -126,7 +126,6 @@ Generativedelay14AudioProcessorEditor::Generativedelay14AudioProcessorEditor (Ge
 Generativedelay14AudioProcessorEditor::~Generativedelay14AudioProcessorEditor()
 {
     stopTimer();
-    //pianoRollViewport.setLookAndFeel(nullptr);
 }
 
 void Generativedelay14AudioProcessorEditor::paint (juce::Graphics& g)

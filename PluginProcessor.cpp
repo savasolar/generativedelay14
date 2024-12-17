@@ -57,11 +57,11 @@ bool Generativedelay14AudioProcessor::isMidiEffect() const
 }
 
 double Generativedelay14AudioProcessor::getTailLengthSeconds() const { return 0.0; }
-int Generativedelay14AudioProcessor::getNumPrograms() { return 1; }
-int Generativedelay14AudioProcessor::getCurrentProgram() { return 0; }
-void Generativedelay14AudioProcessor::setCurrentProgram (int index) { }
-const juce::String Generativedelay14AudioProcessor::getProgramName (int index) { return {}; }
-void Generativedelay14AudioProcessor::changeProgramName (int index, const juce::String& newName) { }
+//int Generativedelay14AudioProcessor::getNumPrograms() { return 1; }
+//int Generativedelay14AudioProcessor::getCurrentProgram() { return 0; }
+//void Generativedelay14AudioProcessor::setCurrentProgram (int index) { }
+//const juce::String Generativedelay14AudioProcessor::getProgramName (int index) { return {}; }
+//void Generativedelay14AudioProcessor::changeProgramName (int index, const juce::String& newName) { }
 
 void Generativedelay14AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
