@@ -126,7 +126,7 @@ Generativedelay14AudioProcessorEditor::Generativedelay14AudioProcessorEditor (Ge
 Generativedelay14AudioProcessorEditor::~Generativedelay14AudioProcessorEditor()
 {
     stopTimer();
-    pianoRollViewport.setLookAndFeel(nullptr);
+    //pianoRollViewport.setLookAndFeel(nullptr);
 }
 
 void Generativedelay14AudioProcessorEditor::paint (juce::Graphics& g)
@@ -179,28 +179,11 @@ void Generativedelay14AudioProcessorEditor::sliderValueChanged(juce::Slider* sli
 void Generativedelay14AudioProcessorEditor::setUpVisualizer()
 {
 
-    // Create the piano roll component
+    // Create and add piano roll component directly
     pianoRoll = std::make_unique<PianoRoll>();
     pianoRoll->setMelodies(audioProcessor.getCapturedMelody(), audioProcessor.getGeneratedMelody());
-
-    // Set up the viewport
-    pianoRollViewport.setViewedComponent(pianoRoll.get(), false);
-    pianoRollViewport.setScrollBarsShown(true, false);
-
-    // Initialize and apply the custom look and feel
-    customLookAndFeel = std::make_unique<CustomLookAndFeel>();
-    pianoRollViewport.setLookAndFeel(customLookAndFeel.get());
-
-    auto& scrollbar = pianoRollViewport.getVerticalScrollBar();
-    scrollbar.setColour(juce::ScrollBar::thumbColourId, juce::Colour(69, 18, 75));
-    scrollbar.setColour(juce::ScrollBar::trackColourId, juce::Colour(21, 0, 23));
-
-    pianoRollViewport.setBounds(120, 50, 600, 480);
-    addAndMakeVisible(pianoRollViewport);
-
-    pianoRollViewport.setViewPosition(0, pianoRoll->getHeight() / 2 - pianoRollViewport.getHeight() / 2);
-
-
+    pianoRoll->setBounds(120, 50, 600, 480);
+    addAndMakeVisible(pianoRoll.get());
 }
 
 
