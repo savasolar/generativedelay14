@@ -112,28 +112,38 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     juce::ScopedNoDenormals noDenormals;
     const juce::ScopedLock sl(innerMutex);
 
-    // store input midi
+    // store and input midi
     juce::MidiBuffer inputMidi;
     inputMidi.addEvents(midiMessages, 0, buffer.getNumSamples(), 0);
     midiMessages.clear();
 
     // process incoming midi
-
     for (const auto metadata : inputMidi)
     {
-        handleMidiMessage(metadata.getMessage());
+        const auto& msg = metadata.getMessage();
+        if (msg.isNoteOn())
+        {
+            inputNote = msg.getNoteNumber();
+            lastInputNote = inputNote;
+            inputNoteActive = true;
+        }
+        else if (msg.isNoteOff() && msg.getNoteNumber() == inputNote)
+        {
+            inputNoteActive = false;
+            inputNote = -1;
+        }
     }
 
-    //update capturedMelody based on timing
+    // handle melody capture timing
 
     if (captureCounter >= samplesPerSymbol)
     {
         std::string currentSlot = "_";
 
-        if (noteIsOn)
+        if (inputNoteActive)
         {
             // Check if previous slot had a note number
-            int prevPos = (currentPosition - 1 + 32) % 32;
+            int prevPos = (capturePosition - 1 + 32) % 32;
             bool prevWasNumber = std::all_of(capturedMelody[prevPos].begin(),
                 capturedMelody[prevPos].end(),
                 ::isdigit);
@@ -147,22 +157,20 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
             else
             {
                 // Only write the note number if we're starting a new note
-                currentSlot = std::to_string(lastPlayedNote);
+                currentSlot = std::to_string(lastInputNote);
             }
         }
 
         // update capturedmelody at current position
 
-        capturedMelody[currentPosition % 32] = currentSlot;
+        capturedMelody[capturePosition % 32] = currentSlot;
         
-        
-        //DBG(capturedMelody[0] + " " + capturedMelody[1] + " " + capturedMelody[2] + " " + capturedMelody[3] + " " + capturedMelody[4] + " " + capturedMelody[5] + " " + capturedMelody[6] + " " + capturedMelody[7] + " " + capturedMelody[8] + " " + capturedMelody[9] + " " + capturedMelody[10] + " " + capturedMelody[11] + " " + capturedMelody[12] + " " + capturedMelody[13] + " " + capturedMelody[14] + " " + capturedMelody[15] + " " + capturedMelody[16] + " " + capturedMelody[17] + " " + capturedMelody[18] + " " + capturedMelody[19] + " " + capturedMelody[20] + " " + capturedMelody[21] + " " + capturedMelody[22] + " " + capturedMelody[23] + " " + capturedMelody[24] + " " + capturedMelody[25] + " " + capturedMelody[26] + " " + capturedMelody[27] + " " + capturedMelody[28] + " " + capturedMelody[29] + " " + capturedMelody[30] + " " + capturedMelody[31]);
+        //DBG(capturedMelody[0] + " " + capturedMelody[1] + " " + capturedMelody[2] + " " + capturedMelody[3] + " " + capturedMelody[4] + ...  + capturedMelody[31]);
 
+        capturePosition++;
 
-        currentPosition++;
-
-        // upon cycling through the entire capturedMelody array:
-        if ((currentPosition % 32) == 0)
+        // handle melody generation
+        if ((capturePosition % 32) == 0)
         {
             // send to neural net for processing based on conditions
 
@@ -190,6 +198,38 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
             std::fill(capturedMelody.begin(), capturedMelody.end(), "_");
         }
 
+
+        // add playback functionality for generated melodies on a symbol-by-symbol basis here
+
+        if (!generatedMelody.empty())
+        {
+            const std::string& currentSymbol = generatedMelody[playbackPosition % generatedMelody.size()];
+
+            // Handle current note state first
+            if (playbackNoteActive && currentSymbol != "-")
+            {
+                // Stop current note if we're not continuing it
+                midiMessages.addEvent(juce::MidiMessage::noteOff(2, playbackNote), 0);
+                playbackNoteActive = false;
+            }
+
+            // Process new symbol
+            if (std::all_of(currentSymbol.begin(), currentSymbol.end(), ::isdigit))
+            {
+                // Start new note
+                playbackNote = std::stoi(currentSymbol);
+                midiMessages.addEvent(juce::MidiMessage::noteOn(2, playbackNote, (uint8_t)vel), 0);
+                playbackNoteActive = true;
+            }
+            // Note: for "-" we do nothing (continues current note)
+            // Note: for "_" we've already handled any needed note-off above
+
+            playbackPosition++;
+        }
+
+
+
+
         captureCounter -= samplesPerSymbol;
     }
     captureCounter += buffer.getNumSamples();
@@ -199,35 +239,6 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     midiMessages.addEvents(inputMidi, 0, buffer.getNumSamples(), 0);
 
 
-    //if (!generatedMelody.empty())
-    //{
-    //    while (playbackCounter >= samplesPerSymbol)
-    //    {
-    //        const std::string& currentSymbol = generatedMelody[playbackPosition % generatedMelody.size()];
-
-    //        if (!currentSymbol.empty())
-    //        {
-    //            if (std::all_of(currentSymbol.begin(), currentSymbol.end(), ::isdigit))
-    //            {
-    //                if (currentNoteNumber >= 0)
-    //                {
-    //                    midiMessages.addEvent(juce::MidiMessage::noteOff(2, currentNoteNumber), 0);
-    //                }
-    //                currentNoteNumber = std::stoi(currentSymbol);
-    //                midiMessages.addEvent(juce::MidiMessage::noteOn(2, currentNoteNumber, (juce::uint8)100), 0);
-    //            }
-    //            else if (currentSymbol == "_" && currentNoteNumber >= 0)
-    //            {
-    //                midiMessages.addEvent(juce::MidiMessage::noteOff(2, currentNoteNumber), 0);
-    //                currentNoteNumber = -1;
-    //            }
-    //        }
-
-    //        playbackPosition++;
-    //        playbackCounter -= samplesPerSymbol;
-    //    }
-    //    playbackCounter += buffer.getNumSamples();
-    //}
 
     // Process through hosted plugin
     if (innerPlugin != nullptr)
@@ -325,20 +336,20 @@ void Generativedelay14AudioProcessor::clearPlugin()
 
 
 
-void Generativedelay14AudioProcessor::handleMidiMessage(const juce::MidiMessage& message)
-{
-    if (message.isNoteOn())
-    {
-        currentMidiNote = message.getNoteNumber();
-        lastPlayedNote = currentMidiNote;
-        noteIsOn = true;
-    }
-    else if (message.isNoteOff() && message.getNoteNumber() == currentMidiNote)
-    {
-        noteIsOn = false;
-        currentMidiNote = -1;
-    }
-}
+//void Generativedelay14AudioProcessor::handleMidiMessage(const juce::MidiMessage& message)
+//{
+//    if (message.isNoteOn())
+//    {
+//        currentMidiNote = message.getNoteNumber();
+//        lastPlayedNote = currentMidiNote;
+//        noteIsOn = true;
+//    }
+//    else if (message.isNoteOff() && message.getNoteNumber() == currentMidiNote)
+//    {
+//        noteIsOn = false;
+//        currentMidiNote = -1;
+//    }
+//}
 
 
 void Generativedelay14AudioProcessor::generateNewMelody()

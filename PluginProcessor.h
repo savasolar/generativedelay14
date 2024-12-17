@@ -62,48 +62,54 @@ public:
     const std::vector<std::string>& getCapturedMelody() const { return capturedMelody; };
     const std::vector<std::string>& getGeneratedMelody() const { return generatedMelody; };
 
-    void handleMidiMessage(const juce::MidiMessage& message);
+    //void handleMidiMessage(const juce::MidiMessage& message);
     void generateNewMelody();
 
 private:
-
+    // global/plugin state
     bool active = false;
     juce::CriticalSection innerMutex;
 
+    // user params
     float temp = 0.8;
     int bpm = 100;
     int vel = 100;
     int octave = 0;
-
+    
+    // melody storage
     std::vector<std::string> capturedMelody;
     std::vector<std::string> generatedMelody;
 
 
-    // make better names for variables based on what they're used for... this is such a fckn headache
+    // input capture
+    // was:
+        //int currentMidiNote = -1;
+        //bool noteIsOn = false;
+        //int lastPlayedNote = -1;
 
-    int currentMidiNote = -1;
-    bool noteIsOn = false;
-    int lastPlayedNote = -1;
+        //int currentPosition = 0;
+        //double samplesPerSymbol = 0;
+        //double sampleCounter = 0;
+        //int currentNoteNumber = -1;
 
-    int currentPosition = 0;
-    double samplesPerSymbol = 0;
-    double sampleCounter = 0;
-    int currentNoteNumber = -1;
+    int inputNote = -1;                 // current input midi note (-1 if none)
+    bool inputNoteActive = false;       // whether input note is playing
+    int lastInputNote = -1;             // last input note number
+    int capturePosition = 0;            // position in capture buffer
+    double captureCounter = 0.0;        // sample counter for capture timing
 
-    // for capturing
-    double captureCounter = 0;
-    int capturePosition = 0;
+    // melody playback
+    int playbackNote = -1;              // current playback note (-1 if none)
+    bool playbackNoteActive = false;    // whether playback note is playing 
+    int playbackPosition = 0;           // position in generated melody
+    //double playbackCounter = 0.0;       // sample counter for playback timing
 
-    // for playback
-    double playbackCounter = 0;
-    int playbackPosition = 0;
+    // timing
+    double samplesPerSymbol = 0.0;      // samples per musical symbol
 
-    ////////
-
+    // generation control
     bool bottleCap = true;
-
     juce::URL flaskURL;
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Generativedelay14AudioProcessor)
 };
