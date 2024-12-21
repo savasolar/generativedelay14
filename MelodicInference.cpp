@@ -1,4 +1,5 @@
 #include "MelodicInference.h"
+//#include <zlib.h>
 
 MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
