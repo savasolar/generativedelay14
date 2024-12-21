@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "MelodicInference.h"
 
 class Generativedelay14AudioProcessor  : public juce::AudioProcessor
 {
@@ -110,6 +111,9 @@ private:
     // generation control
     bool bottleCap = true;
     juce::URL flaskURL;
+
+
+    std::unique_ptr<MelodicInference> mlInference;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Generativedelay14AudioProcessor)
 };

@@ -352,62 +352,79 @@ void Generativedelay14AudioProcessor::clearPlugin()
 //}
 
 
+//void Generativedelay14AudioProcessor::generateNewMelody()
+//{
+//    // convert vector to string
+//    juce::String melodyString;
+//    for (const auto& note : capturedMelody) {
+//        melodyString += juce::String(note) + " ";
+//    }
+//    melodyString = melodyString.trimEnd();
+//
+//    // construct json body
+//    juce::String jsonBody = "{\"prompt\": \"" + melodyString + "\"}";
+//
+//    // launch network request on background thread ...
+//    std::thread([this, jsonBody]() {
+//        DBG(/*"Sending to Flask: " + */jsonBody);
+//
+//        juce::URL url(flaskURL);
+//        juce::String response = url.withPOSTData(jsonBody).readEntireTextStream(true);
+//
+//        if (response.isNotEmpty()) {
+//            // Process response and update UI on message thread
+//            juce::MessageManager::callAsync([this, response]() {
+//                DBG(/*"Received from Flask: " + */response);
+//
+//                juce::var responseJson = juce::JSON::parse(response);
+//                if (responseJson.isObject()) {
+//                    juce::var generatedMelodyVar = responseJson["generated_melody"];
+//                    if (generatedMelodyVar.isString()) {
+//                        juce::String melodyString = generatedMelodyVar.toString();
+//
+//                        // Parse response into vector
+//                        std::vector<std::string> newMelody;
+//                        std::istringstream iss(melodyString.toStdString());
+//                        std::string token;
+//                        while (std::getline(iss, token, ' ')) {
+//                            newMelody.push_back(token);
+//                        }
+//
+//                        // Update generatedMelody
+//                        generatedMelody = std::move(newMelody);
+//                        //visuaLog("Updated generatedMelody, length: " + juce::String(generatedMelody.size()));
+//
+//
+//                        // indicate readiness for new capturedMelody
+//                        bottleCap = false;
+//                    }
+//                }
+//                });
+//        }
+//        else {
+//            juce::MessageManager::callAsync([this]() {
+//                DBG("Failed to connect to Flask server");
+//            });
+//        }
+//        }).detach();  // detach thread so it runs independently
+//
+//}
+
 void Generativedelay14AudioProcessor::generateNewMelody()
 {
-    // convert vector to string
-    juce::String melodyString;
-    for (const auto& note : capturedMelody) {
-        melodyString += juce::String(note) + " ";
+    // Initialize ML inference if not already done
+    if (!mlInference)
+    {
+        mlInference = std::make_unique<MelodicInference>();
+        mlInference->loadModel();
     }
-    melodyString = melodyString.trimEnd();
 
-    // construct json body
-    juce::String jsonBody = "{\"prompt\": \"" + melodyString + "\"}";
+    // Convert capturedMelody directly
+    generatedMelody = mlInference->generate(capturedMelody, temp, 200);
 
-    // launch network request on background thread ...
-    std::thread([this, jsonBody]() {
-        DBG(/*"Sending to Flask: " + */jsonBody);
-
-        juce::URL url(flaskURL);
-        juce::String response = url.withPOSTData(jsonBody).readEntireTextStream(true);
-
-        if (response.isNotEmpty()) {
-            // Process response and update UI on message thread
-            juce::MessageManager::callAsync([this, response]() {
-                DBG(/*"Received from Flask: " + */response);
-
-                juce::var responseJson = juce::JSON::parse(response);
-                if (responseJson.isObject()) {
-                    juce::var generatedMelodyVar = responseJson["generated_melody"];
-                    if (generatedMelodyVar.isString()) {
-                        juce::String melodyString = generatedMelodyVar.toString();
-
-                        // Parse response into vector
-                        std::vector<std::string> newMelody;
-                        std::istringstream iss(melodyString.toStdString());
-                        std::string token;
-                        while (std::getline(iss, token, ' ')) {
-                            newMelody.push_back(token);
-                        }
-
-                        // Update generatedMelody
-                        generatedMelody = std::move(newMelody);
-                        //visuaLog("Updated generatedMelody, length: " + juce::String(generatedMelody.size()));
-
-
-                        // indicate readiness for new capturedMelody
-                        bottleCap = false;
-                    }
-                }
-                });
-        }
-        else {
-            juce::MessageManager::callAsync([this]() {
-                DBG("Failed to connect to Flask server");
-            });
-        }
-        }).detach();  // detach thread so it runs independently
-
+    // Reset playback
+    playbackPosition = 0;
+    bottleCap = false;
 }
 
 
