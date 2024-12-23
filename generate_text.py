@@ -21,33 +21,6 @@ model = MelodicStudent(
 model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
-
-def export_for_cpp(model, checkpoint, output_path):
-    # Get the model to CPU for numpy conversion
-    model.to('cpu')
-    
-    # Extract and save all weights and token mappings
-    weights = {
-        'token_embedding': model.embedding.weight.data.numpy(),
-        'position_embedding': model.position_embedding.weight.data.numpy(),
-        'attention_qkv': model.attention.in_proj_weight.data.numpy(),
-        'attention_bias': model.attention.in_proj_bias.data.numpy(),
-        'lstm_ih': model.lstm.weight_ih_l0.data.numpy(),
-        'lstm_hh': model.lstm.weight_hh_l0.data.numpy(),
-        'lstm_bias': (model.lstm.bias_ih_l0.data + model.lstm.bias_hh_l0.data).numpy(),
-        'output': model.output.weight.data.numpy(),
-        'output_bias': model.output.bias.data.numpy(),
-        'token_to_idx': checkpoint['token2idx'],
-        'idx_to_token': checkpoint['idx2token']
-    }
-    np.savez(output_path, **weights)
-
-
-# Then call it right after your model loading:
-export_for_cpp(model, checkpoint, 'model_weights.npz')
-
-
-
 # Update tokenizer loading:
 stoi = checkpoint['token2idx']
 itos = checkpoint['idx2token']
