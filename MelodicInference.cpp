@@ -55,6 +55,30 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
     return { "60", "-", "-", "-", "64", "-", "-", "-" };
 }
 
+std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& input_tokens) {
+    size_t seq_len = input_tokens.size();
+    size_t max_positions = std::min(seq_len, size_t(32));
+    std::vector<float> output(seq_len * config.embedding_dim, 0.0f);
+
+    // Token embeddings
+    for (size_t i = 0; i < seq_len; i++) {
+        size_t token_idx = input_tokens[i] * config.embedding_dim;
+        for (size_t j = 0; j < config.embedding_dim; j++) {
+            output[i * config.embedding_dim + j] = weights.token_embedding[token_idx + j];
+        }
+    }
+
+    // Position embeddings
+    for (size_t i = 0; i < seq_len; i++) {
+        size_t pos = i % 32;
+        for (size_t j = 0; j < config.embedding_dim; j++) {
+            output[i * config.embedding_dim + j] += weights.position_embedding[pos * config.embedding_dim + j];
+        }
+    }
+
+    return output;
+}
+
 bool MelodicInference::loadNPZ(const char* path) {
     return true;
 }

@@ -14,6 +14,8 @@ public:
 	std::vector<std::string> generate(const std::vector<std::string>& prompt, float temperature = 0.8f, int topK = 200);
 
 private:
+	std::vector<float> embedding_forward(const std::vector<int>& input_tokens);
+
 	struct ModelWeights {
 		std::vector<float> token_embedding;
 		std::vector<float> position_embedding;
