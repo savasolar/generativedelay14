@@ -16,6 +16,8 @@ public:
 private:
 	std::vector<float> embedding_forward(const std::vector<int>& input_tokens);
 
+	bool test_embedding_simple();
+
 	struct ModelWeights {
 		std::vector<float> token_embedding;
 		std::vector<float> position_embedding;
