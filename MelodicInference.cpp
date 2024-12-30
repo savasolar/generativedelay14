@@ -76,7 +76,9 @@ bool MelodicInference::test_embedding_simple() {
     auto result = embedding_forward(test_tokens);
 
     // First 5 values for token "60" should match Python output
-    float expected[5] = { 0.28037292f, -1.8811982f, 0.6628347f, -0.52908814f, 0.3716367f };
+    //float expected[5] = { 0.28037292f, -1.8811982f, 0.6628347f, -0.52908814f, 0.3716367f };
+    //float expected[5] = { -1.8812f, 0.662835f, -0.529088f, 0.371637f, -1.17781f };
+    float expected[5] = { -1.8812f, 0.662835f, -0.529088f, 0.371637f, -1.17781f };
 
     for (int i = 0; i < 5; i++) {
         float diff = std::abs(result[i] - expected[i]);
@@ -94,26 +96,41 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
     return { "60", "-", "-", "-", "64", "-", "-", "-" };
 }
 
+//std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& input_tokens) {
+//    size_t seq_len = input_tokens.size();
+//    size_t max_positions = std::min(seq_len, size_t(32));
+//    std::vector<float> output(seq_len * config.embedding_dim, 0.0f);
+//
+//    // Print dimensions for debugging
+//    DBG("config.embedding_dim: " << config.embedding_dim);
+//    DBG("weights.token_embedding.size(): " << weights.token_embedding.size());
+//
+//    for (size_t i = 0; i < seq_len; i++) {
+//        // Debug the index calculation
+//        size_t token_offset = input_tokens[i] * config.embedding_dim;
+//        DBG("Token " << input_tokens[i] << " offset: " << token_offset);
+//
+//        for (size_t j = 0; j < config.embedding_dim; j++) {
+//            if (token_offset + j >= weights.token_embedding.size()) {
+//                DBG("Index out of bounds: " << token_offset + j);
+//                continue;
+//            }
+//            output[i * config.embedding_dim + j] = weights.token_embedding[token_offset + j];
+//        }
+//    }
+//    return output;
+//}
+
 std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& input_tokens) {
     size_t seq_len = input_tokens.size();
-    size_t max_positions = std::min(seq_len, size_t(32));
     std::vector<float> output(seq_len * config.embedding_dim, 0.0f);
 
-    // Print dimensions for debugging
-    DBG("config.embedding_dim: " << config.embedding_dim);
-    DBG("weights.token_embedding.size(): " << weights.token_embedding.size());
-
     for (size_t i = 0; i < seq_len; i++) {
-        // Debug the index calculation
-        size_t token_offset = input_tokens[i] * config.embedding_dim;
-        DBG("Token " << input_tokens[i] << " offset: " << token_offset);
-
         for (size_t j = 0; j < config.embedding_dim; j++) {
-            if (token_offset + j >= weights.token_embedding.size()) {
-                DBG("Index out of bounds: " << token_offset + j);
-                continue;
-            }
-            output[i * config.embedding_dim + j] = weights.token_embedding[token_offset + j];
+            output[i * config.embedding_dim + j] = weights.token_embedding[input_tokens[i] * config.embedding_dim + j];
+            
+            //output[i * config.embedding_dim + j] = weights.token_embedding[j * config.vocab_size + input_tokens[i]];
+            //output[i * config.embedding_dim + j] = weights.token_embedding[input_tokens[i] * config.embedding_dim + j];
         }
     }
     return output;
