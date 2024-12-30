@@ -47,4 +47,9 @@ private:
 	bool validateWeights();
 
 	bool loadFromBinaryData();
+
+	std::vector<float> add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len);
+	std::vector<size_t> generate_position_indices(size_t seq_len);
+
+	bool test_position_embeddings();
 };

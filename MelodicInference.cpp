@@ -96,31 +96,6 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
     return { "60", "-", "-", "-", "64", "-", "-", "-" };
 }
 
-//std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& input_tokens) {
-//    size_t seq_len = input_tokens.size();
-//    size_t max_positions = std::min(seq_len, size_t(32));
-//    std::vector<float> output(seq_len * config.embedding_dim, 0.0f);
-//
-//    // Print dimensions for debugging
-//    DBG("config.embedding_dim: " << config.embedding_dim);
-//    DBG("weights.token_embedding.size(): " << weights.token_embedding.size());
-//
-//    for (size_t i = 0; i < seq_len; i++) {
-//        // Debug the index calculation
-//        size_t token_offset = input_tokens[i] * config.embedding_dim;
-//        DBG("Token " << input_tokens[i] << " offset: " << token_offset);
-//
-//        for (size_t j = 0; j < config.embedding_dim; j++) {
-//            if (token_offset + j >= weights.token_embedding.size()) {
-//                DBG("Index out of bounds: " << token_offset + j);
-//                continue;
-//            }
-//            output[i * config.embedding_dim + j] = weights.token_embedding[token_offset + j];
-//        }
-//    }
-//    return output;
-//}
-
 std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& input_tokens) {
     size_t seq_len = input_tokens.size();
     std::vector<float> output(seq_len * config.embedding_dim, 0.0f);
@@ -141,5 +116,44 @@ bool MelodicInference::loadNPZ(const char* path) {
 }
 
 bool MelodicInference::validateWeights() {
+    return true;
+}
+
+std::vector<size_t> MelodicInference::generate_position_indices(size_t seq_len) {
+    std::vector<size_t> positions(seq_len);
+    for (size_t i = 0; i < seq_len; i++) {
+        positions[i] = i % 32; // Match Python's max positions
+    }
+    return positions;
+}
+
+std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
+    auto positions = generate_position_indices(seq_len);
+
+    for (size_t i = 0; i < seq_len; i++) {
+        for (size_t j = 0; j < config.embedding_dim; j++) {
+            token_embeddings[i * config.embedding_dim + j] +=
+                weights.position_embedding[positions[i] * config.embedding_dim + j];
+        }
+    }
+    return token_embeddings;
+}
+
+bool MelodicInference::test_position_embeddings() {
+    std::vector<int> test_tokens = { 60, 45 };
+    auto token_emb = embedding_forward(test_tokens);
+    auto pos_emb = add_position_embeddings(token_emb, test_tokens.size());
+
+    // First 5 values for position 0 embedding should match Python output
+    float expected[5] = { 0.28037292f, -1.8811982f, 0.6628347f, -0.52908814f, 0.3716367f };
+
+    for (int i = 0; i < 5; i++) {
+        float diff = std::abs(pos_emb[i] - expected[i]);
+        if (diff > 0.1f) {
+            DBG("Position embedding test failed at " << i);
+            DBG("Expected: " << expected[i] << " Got: " << pos_emb[i]);
+            return false;
+        }
+    }
     return true;
 }
