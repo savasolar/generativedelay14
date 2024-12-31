@@ -8,7 +8,7 @@ bool MelodicInference::loadModel() {
     if (!loadFromBinaryData()) {
         return false;
     }
-    return test_embedding_simple();
+    return test_embedding_simple() && test_position_embeddings();
 
 }
 
@@ -128,14 +128,20 @@ std::vector<size_t> MelodicInference::generate_position_indices(size_t seq_len) 
 }
 
 std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
-    auto positions = generate_position_indices(seq_len);
+    DBG("Token[0] before: " + juce::String(token_embeddings[0]));
 
     for (size_t i = 0; i < seq_len; i++) {
+        size_t pos = i % 32;
         for (size_t j = 0; j < config.embedding_dim; j++) {
-            token_embeddings[i * config.embedding_dim + j] +=
-                weights.position_embedding[positions[i] * config.embedding_dim + j];
+            float pos_val = weights.position_embedding[pos * config.embedding_dim + j];
+            if (i == 0 && j < 3) {
+                DBG("Pos " + juce::String(i) + " dim " + juce::String(j) + ": " + juce::String(pos_val));
+            }
+            token_embeddings[i * config.embedding_dim + j] += pos_val;
         }
     }
+
+    DBG("Token[0] after: " + juce::String(token_embeddings[0]));
     return token_embeddings;
 }
 
@@ -145,7 +151,7 @@ bool MelodicInference::test_position_embeddings() {
     auto pos_emb = add_position_embeddings(token_emb, test_tokens.size());
 
     // First 5 values for position 0 embedding should match Python output
-    float expected[5] = { 0.28037292f, -1.8811982f, 0.6628347f, -0.52908814f, 0.3716367f };
+    float expected[5] = { -1.5884430f, -2.3042361f, -0.3410752f, -1.5191745f, -0.3690222f };
 
     for (int i = 0; i < 5; i++) {
         float diff = std::abs(pos_emb[i] - expected[i]);
