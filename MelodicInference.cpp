@@ -54,19 +54,17 @@ bool MelodicInference::loadFromBinaryData() {
 
     // Load all tensors in order matching Python export
     loadTensor(weights.token_embedding, config.vocab_size * config.embedding_dim);
-    loadTensor(weights.position_embedding, 32 * config.embedding_dim);
-    loadTensor(weights.attention_qkv, 3 * config.embedding_dim * config.embedding_dim);
-    loadTensor(weights.attention_bias, 3 * config.embedding_dim);
-    loadTensor(weights.lstm_ih, 4 * config.hidden_size * config.embedding_dim);
-    loadTensor(weights.lstm_hh, 4 * config.hidden_size * config.hidden_size);
-    loadTensor(weights.lstm_bias, 4 * config.hidden_size);
-    loadTensor(weights.output, config.vocab_size * (config.hidden_size * 2));
-    loadTensor(weights.output_bias, config.vocab_size);
 
-    DBG("Loaded token_embedding size: " << weights.token_embedding.size());
-    DBG("Expected size: " << config.vocab_size * config.embedding_dim);
-    DBG("Config vocab_size: " << config.vocab_size);
-    DBG("Config embedding_dim: " << config.embedding_dim);
+    // Debug position embeddings loading
+    loadTensor(weights.position_embedding, 32 * config.embedding_dim);
+    DBG("Position embedding loaded:");
+    DBG("First 6 values: " +
+        juce::String(weights.position_embedding[0]) + ", " +
+        juce::String(weights.position_embedding[1]) + ", " +
+        juce::String(weights.position_embedding[2]) + ", " +
+        juce::String(weights.position_embedding[3]) + ", " +
+        juce::String(weights.position_embedding[4]) + ", " +
+        juce::String(weights.position_embedding[5]));
 
     return validateWeights();
 }
@@ -106,6 +104,7 @@ std::vector<float> MelodicInference::embedding_forward(const std::vector<int>& i
             
             //output[i * config.embedding_dim + j] = weights.token_embedding[j * config.vocab_size + input_tokens[i]];
             //output[i * config.embedding_dim + j] = weights.token_embedding[input_tokens[i] * config.embedding_dim + j];
+
         }
     }
     return output;
@@ -128,12 +127,19 @@ std::vector<size_t> MelodicInference::generate_position_indices(size_t seq_len) 
 }
 
 std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
-    DBG("Token[0] before: " + juce::String(token_embeddings[0]));
+//    DBG("Token[0] before: " + juce::String(token_embeddings[0]));
+
+    DBG("\nComplete verification:");
+    DBG("1. Token embedding at pos 0: " + juce::String(token_embeddings[0]));
+    float pos_val = weights.position_embedding[0];
+    DBG("2. Position embedding at pos 0: " + juce::String(pos_val));
+    DBG("3. Sum: " + juce::String(token_embeddings[0] + pos_val));
 
     for (size_t i = 0; i < seq_len; i++) {
         size_t pos = i % 32;
         for (size_t j = 0; j < config.embedding_dim; j++) {
             float pos_val = weights.position_embedding[pos * config.embedding_dim + j];
+            //float pos_val = weights.position_embedding[j + 1 + pos * config.embedding_dim];
             if (i == 0 && j < 3) {
                 DBG("Pos " + juce::String(i) + " dim " + juce::String(j) + ": " + juce::String(pos_val));
             }
