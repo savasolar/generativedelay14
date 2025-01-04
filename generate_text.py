@@ -25,10 +25,39 @@ model.eval()
 stoi = checkpoint['token2idx']
 itos = checkpoint['idx2token']
 
+# after model loading:
+# print("\nPosition embedding layout:")
+# pos_emb = model.position_embedding.weight.detach().cpu().numpy()
+# print("Shape:", pos_emb.shape)
+# print("First position (first 3 values):", pos_emb[0, :3])
+# print("Raw weights (first 3):", model.position_embedding.weight.detach().cpu().numpy()[:3])
+
+test_tokens = torch.tensor([[60, 45]]) 
+token_emb = model.embedding(test_tokens)
+pos_emb = model.position_embedding(torch.arange(2))
+
+print("\nComplete verification:")
+print("1. Token embedding at pos 0:", token_emb[0, 0, 0].item())
+print("2. Position embedding at pos 0:", pos_emb[0, 0].item())
+print("3. Sum:", token_emb[0, 0, 0].item() + pos_emb[0, 0].item())
+
+# print("Token embedding first 5:", token_emb[0, 0, :5].tolist())
+# print("Position 0 embedding first 5:", pos_emb[0, :5].tolist())  
+# print("Combined first 5:", (token_emb + pos_emb.unsqueeze(0))[0, 0, :5].tolist())
+
+# print("Token embedding first value:", token_emb[0, 0, 0].item())
+# print("Position embedding first value:", pos_emb[0, 0].item())
+
 # working function for exporting binary weights
 def export_binary_weights():
     # Debug prints
-    print("Token 60 embedding weights being exported:", model.embedding.weight[60][:5].tolist())
+    # Debug position embeddings specifically
+    pos_emb = model.position_embedding.weight.detach().cpu().numpy()
+    print("\nPosition Embedding Debug:")
+    print("Shape:", pos_emb.shape)
+    print("First position (raw numpy):", pos_emb[0, :3])
+    print("Memory layout:", pos_emb.strides)
+    print("First 6 values as written to file:", pos_emb.flatten()[:6])
     
     weights = {
         'token_embedding': model.embedding.weight,

@@ -126,28 +126,45 @@ std::vector<size_t> MelodicInference::generate_position_indices(size_t seq_len) 
     return positions;
 }
 
-std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
-//    DBG("Token[0] before: " + juce::String(token_embeddings[0]));
+//std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
+////    DBG("Token[0] before: " + juce::String(token_embeddings[0]));
+//
+//    DBG("\nComplete verification:");
+//    DBG("1. Token embedding at pos 0: " + juce::String(token_embeddings[0]));
+//    float pos_val = weights.position_embedding[0];
+//    DBG("2. Position embedding at pos 0: " + juce::String(pos_val));
+//    DBG("3. Sum: " + juce::String(token_embeddings[0] + pos_val));
+//
+//    for (size_t i = 0; i < seq_len; i++) {
+//        size_t pos = i % 32;
+//        for (size_t j = 0; j < config.embedding_dim; j++) {
+//            float pos_val = weights.position_embedding[pos * config.embedding_dim + j];
+//            //float pos_val = weights.position_embedding[j + 1 + pos * config.embedding_dim];
+//            if (i == 0 && j < 3) {
+//                DBG("Pos " + juce::String(i) + " dim " + juce::String(j) + ": " + juce::String(pos_val));
+//            }
+//            token_embeddings[i * config.embedding_dim + j] += pos_val;
+//        }
+//    }
+//
+//    DBG("Token[0] after: " + juce::String(token_embeddings[0]));
+//    return token_embeddings;
+//}
 
-    DBG("\nComplete verification:");
-    DBG("1. Token embedding at pos 0: " + juce::String(token_embeddings[0]));
-    float pos_val = weights.position_embedding[0];
-    DBG("2. Position embedding at pos 0: " + juce::String(pos_val));
-    DBG("3. Sum: " + juce::String(token_embeddings[0] + pos_val));
+std::vector<float> MelodicInference::add_position_embeddings(std::vector<float>& token_embeddings, size_t seq_len) {
+    // debug first
+    DBG("Position embedding values at start: " +
+        juce::String(weights.position_embedding[0]) + ", " +     // what's at index 0
+        juce::String(weights.position_embedding[32]) + ", " +    // what's at start of second row
+        juce::String(weights.position_embedding[64]));          // what's at start of third row
 
     for (size_t i = 0; i < seq_len; i++) {
         size_t pos = i % 32;
         for (size_t j = 0; j < config.embedding_dim; j++) {
             float pos_val = weights.position_embedding[pos * config.embedding_dim + j];
-            //float pos_val = weights.position_embedding[j + 1 + pos * config.embedding_dim];
-            if (i == 0 && j < 3) {
-                DBG("Pos " + juce::String(i) + " dim " + juce::String(j) + ": " + juce::String(pos_val));
-            }
             token_embeddings[i * config.embedding_dim + j] += pos_val;
         }
     }
-
-    DBG("Token[0] after: " + juce::String(token_embeddings[0]));
     return token_embeddings;
 }
 
