@@ -35,6 +35,7 @@ private:
     };
 
     Eigen::MatrixXf getTokenEmbeddings(const std::vector<int>& input_tokens);
+    Eigen::MatrixXf getTokenEmbeddings2(const std::vector<int>& input_tokens);
     Eigen::MatrixXf addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings);
     Eigen::MatrixXf computeAttention(const Eigen::MatrixXf& embeddings);
     Eigen::MatrixXf processLSTM(const Eigen::MatrixXf& attention_output);
