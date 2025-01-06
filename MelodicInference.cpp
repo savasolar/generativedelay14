@@ -39,7 +39,7 @@ bool MelodicInference::loadConfig(const std::string& filename) {
 
     DBG("\nToken mapping debug - Reading:");
     // Read token mappings
-    while (!stream.isExhausted()) {
+    /*while (!stream.isExhausted()) {
         int32_t tokenLen = stream.readInt();
         if (stream.isExhausted()) break;
 
@@ -50,6 +50,28 @@ bool MelodicInference::loadConfig(const std::string& filename) {
 
         tokenToIdx[token.toStdString()] = idx;
         idxToToken[idx] = token.toStdString();
+    }*/
+
+    while (!stream.isExhausted()) {
+        // Read token length
+        int32_t tokenLen = stream.readInt();
+        if (stream.isExhausted()) break;
+
+        // Read exactly tokenLen bytes into a string
+        std::vector<char> tokenBuffer(tokenLen);
+        if (stream.read(tokenBuffer.data(), tokenLen) != tokenLen) {
+            DBG("Failed to read token bytes");
+            return false;
+        }
+        std::string token(tokenBuffer.begin(), tokenBuffer.end());
+
+        // Read token index
+        int32_t idx = stream.readInt();
+
+        DBG("Token '" << token << "' -> index " << idx);
+
+        tokenToIdx[token] = idx;
+        idxToToken[idx] = token;
     }
 
     return true;
@@ -211,19 +233,16 @@ Eigen::VectorXf MelodicInference::forward(const std::vector<int>& tokens) {
 
 
 bool MelodicInference::test_embedding_simple() {
-    DBG("\nDEBUG: Token '60' maps to index " << tokenToIdx["60"]);
-
     std::vector<int> test_tokens = { tokenToIdx["60"], tokenToIdx["45"] };
     auto result = getTokenEmbeddings(test_tokens);
 
-    DBG("\nInput tokens indices: " << test_tokens[0] << ", " << test_tokens[1]);
-
-    DBG("\nToken embeddings first 5 values (for '60'):");
+    DBG("\nPrompt '60 45' debug:");
+    DBG("Token embedding first 5 values:");
     for (int i = 0; i < 5; i++) {
-        DBG(result(0, i));  // first row = token "60"
+        DBG(result(0, i));
     }
 
-    DBG("\nPosition embeddings first 5 values:");
+    DBG("\nPosition embedding first 5 values:");
     for (int i = 0; i < 5; i++) {
         DBG(weights.position_embedding[i]);
     }
@@ -231,7 +250,7 @@ bool MelodicInference::test_embedding_simple() {
     auto combined = addPositionEmbeddings(result);
     DBG("\nCombined first 5 values:");
     for (int i = 0; i < 5; i++) {
-        DBG(combined(0, i));  // Combined at position 0
+        DBG(combined(0, i));
     }
 
     return true;
