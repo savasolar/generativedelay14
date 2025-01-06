@@ -4,70 +4,158 @@ MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
 
 bool MelodicInference::loadModel() {
-    if (!loadFromBinaryData()) {
+    // first load config and token mappings
+    if (!loadConfig("model_weights/config.bin")) {
         return false;
     }
+
+    // load each weight matrix separately
+    if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
+        !loadPositionEmbeddings("model_weights/position_embedding.bin")) {
+        return false;
+    }
+
     return test_embedding_simple() && test_position_embeddings();
 }
 
-bool MelodicInference::loadFromBinaryData() {
-    auto* data = BinaryData::model_weights_bin;
-    size_t pos = 0;
+bool MelodicInference::loadConfig(const std::string& filename) {
+    // Use absolute path where we know the files are
+    juce::File configFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\)" + filename);
 
-    // Read config
-    config.vocab_size = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
-    config.embedding_dim = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
-    config.hidden_size = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
-
-    // Read token mappings
-    while (pos < BinaryData::model_weights_binSize) {
-        int32_t tokenLen = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
-        if (pos + tokenLen + 4 > BinaryData::model_weights_binSize) break;
-
-        std::string token(data + pos, tokenLen); pos += tokenLen;
-        int32_t idx = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
-
-        tokenToIdx[token] = idx;
-        idxToToken[idx] = token;
+    if (!configFile.existsAsFile()) {
+        DBG("Config file not found: " << configFile.getFullPathName());
+        return false;
     }
 
-    // Load weights helper
-    auto loadTensor = [&pos, data](std::vector<float>& vec, size_t size) {
-        vec.resize(size);
-        memcpy(vec.data(), data + pos, size * sizeof(float));
-        pos += size * sizeof(float);
-        };
+    juce::FileInputStream stream(configFile);
+    if (stream.failedToOpen()) {
+        return false;
+    }
 
+    // Read config values
+    config.vocab_size = stream.readInt();
+    config.embedding_dim = stream.readInt();
+    config.hidden_size = stream.readInt();
 
-    auto loadTensor2 = [&pos, data](std::vector<float>& vec, size_t size) {
-        vec.resize(size);
-        // Step back one float before copying
-        pos -= sizeof(float);
-        memcpy(vec.data(), data + pos, size * sizeof(float));
-        pos += size * sizeof(float);
-        };
+    // Read token mappings
+    while (!stream.isExhausted()) {
+        int32_t tokenLen = stream.readInt();
+        if (stream.isExhausted()) break;
 
-    // Load all tensors in order matching Python export
-    loadTensor(weights.token_embedding, config.vocab_size * config.embedding_dim);
-    loadTensor2(weights.position_embedding, 32 * config.embedding_dim);
-    //loadTensor(weights.attention_qkv, /* size */);  // TODO: Add correct sizes
-    //loadTensor(weights.attention_bias, /* size */);
-    //loadTensor(weights.lstm_ih, /* size */);
-    //loadTensor(weights.lstm_hh, /* size */);
-    //loadTensor(weights.lstm_bias, /* size */);
-    //loadTensor(weights.output, /* size */);
-    //loadTensor(weights.output_bias, /* size */);
+        juce::String token = stream.readString();
+        int32_t idx = stream.readInt();
 
-    //DBG("\nEntire position embedding array (" << weights.position_embedding.size() << " values):");
-    //for (size_t i = 0; i < weights.position_embedding.size(); i++) {
-    //    DBG("Index " << i << ": " << weights.position_embedding[i]);
-    //    if (i % config.embedding_dim == 0) {
-    //        DBG("----- Position " << (i / config.embedding_dim) << " -----");
-    //    }
-    //}
+        tokenToIdx[token.toStdString()] = idx;
+        idxToToken[idx] = token.toStdString();
+    }
 
     return true;
 }
+
+bool MelodicInference::loadTokenEmbeddings(const std::string& filename) {
+    juce::File embedFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\)" + filename);
+    ;
+
+    if (!embedFile.existsAsFile()) {
+        DBG("Token embeddings file not found: " << embedFile.getFullPathName());
+        return false;
+    }
+
+    juce::FileInputStream stream(embedFile);
+    if (stream.failedToOpen()) {
+        return false;
+    }
+
+    // Read dimensions
+    int32_t numDims = stream.readInt();
+    std::vector<int32_t> dims;
+    for (int i = 0; i < numDims; i++) {
+        dims.push_back(stream.readInt());
+    }
+
+    // Allocate and read data
+    size_t totalSize = config.vocab_size * config.embedding_dim;
+    weights.token_embedding.resize(totalSize);
+    return stream.read(weights.token_embedding.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+}
+
+bool MelodicInference::loadPositionEmbeddings(const std::string& filename) {
+    juce::File embedFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\)" + filename);
+    ;
+
+    if (!embedFile.existsAsFile()) {
+        DBG("Position embeddings file not found: " << embedFile.getFullPathName());
+        return false;
+    }
+
+    juce::FileInputStream stream(embedFile);
+    if (stream.failedToOpen()) {
+        return false;
+    }
+
+    // Read dimensions
+    int32_t numDims = stream.readInt();
+    std::vector<int32_t> dims;
+    for (int i = 0; i < numDims; i++) {
+        dims.push_back(stream.readInt());
+    }
+
+    // Allocate and read data
+    size_t totalSize = 32 * config.embedding_dim;
+    weights.position_embedding.resize(totalSize);
+    return stream.read(weights.position_embedding.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+}
+
+//bool MelodicInference::loadFromBinaryData() {
+//    auto* data = BinaryData::model_weights_bin;
+//    size_t pos = 0;
+//
+//    // Read config
+//    config.vocab_size = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
+//    config.embedding_dim = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
+//    config.hidden_size = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
+//
+//    // Read token mappings
+//    while (pos < BinaryData::model_weights_binSize) {
+//        int32_t tokenLen = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
+//        if (pos + tokenLen + 4 > BinaryData::model_weights_binSize) break;
+//
+//        std::string token(data + pos, tokenLen); pos += tokenLen;
+//        int32_t idx = *reinterpret_cast<const int32_t*>(data + pos); pos += 4;
+//
+//        tokenToIdx[token] = idx;
+//        idxToToken[idx] = token;
+//    }
+//
+//    // Load weights helper
+//    auto loadTensor = [&pos, data](std::vector<float>& vec, size_t size) {
+//        vec.resize(size);
+//        memcpy(vec.data(), data + pos, size * sizeof(float));
+//        pos += size * sizeof(float);
+//        };
+//
+//
+//    auto loadTensor2 = [&pos, data](std::vector<float>& vec, size_t size) {
+//        vec.resize(size);
+//        // Step back one float before copying
+//        pos -= sizeof(float);
+//        memcpy(vec.data(), data + pos, size * sizeof(float));
+//        pos += size * sizeof(float);
+//        };
+//
+//    // Load all tensors in order matching Python export
+//    loadTensor(weights.token_embedding, config.vocab_size * config.embedding_dim);
+//    loadTensor2(weights.position_embedding, 32 * config.embedding_dim);
+//    //loadTensor(weights.attention_qkv, /* size */);  // TODO: Add correct sizes
+//    //loadTensor(weights.attention_bias, /* size */);
+//    //loadTensor(weights.lstm_ih, /* size */);
+//    //loadTensor(weights.lstm_hh, /* size */);
+//    //loadTensor(weights.lstm_bias, /* size */);
+//    //loadTensor(weights.output, /* size */);
+//    //loadTensor(weights.output_bias, /* size */);
+//
+//    return true;
+//}
 
 std::vector<std::string> MelodicInference::generate(const std::vector<std::string>& prompt, float temperature, int topK) {
     std::vector<int> tokens;
@@ -102,77 +190,6 @@ Eigen::MatrixXf MelodicInference::getTokenEmbeddings(const std::vector<int>& inp
     return embeddings;
 }
 
-Eigen::MatrixXf MelodicInference::getTokenEmbeddings2(const std::vector<int>& input_tokens) {
-    Eigen::MatrixXf embeddings(input_tokens.size(), config.embedding_dim);
-
-    for (int i = 0; i < input_tokens.size(); i++) {
-        int token_idx = input_tokens[i];
-
-        // Debug inside the loop
-        if (token_idx == 60) {
-            DBG("Token " << token_idx << " embedding starts at offset: " << (token_idx * config.embedding_dim));
-            DBG("First 5 values in weights.token_embedding:");
-            for (int j = 0; j < 5; j++) {
-                DBG(weights.token_embedding[token_idx * config.embedding_dim + j]);
-            }
-        }
-
-        /*const float* token_emb = weights.token_embedding.data() + token_idx * config.embedding_dim;
-        embeddings.row(i) = Eigen::Map<const Eigen::VectorXf>(token_emb, config.embedding_dim);*/
-
-        // offset back by one float
-        const float* token_emb = weights.token_embedding.data() + token_idx * config.embedding_dim/* - sizeof(float)*/;
-        embeddings.row(i) = Eigen::Map<const Eigen::VectorXf>(token_emb, config.embedding_dim);
-    }
-
-    return embeddings;
-}
-
-//Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings) {
-//    
-//    // get sequence length
-//    int seq_len = token_embeddings.rows();
-//    // limit to max 32 positions
-//    seq_len = std::min(seq_len, 32);
-//
-//    // create matrix same size as input
-//    Eigen::MatrixXf output = token_embeddings;
-//
-//    // for each position in sequence
-//    for (int pos = 0; pos < seq_len; pos++) {
-//        // get position embedding vector
-//        //const float* pos_emb = weights.position_embedding.data() + pos * config.embedding_dim;
-//        const float* pos_emb = weights.position_embedding.data() + pos;
-//        output.row(pos) += Eigen::Map<const Eigen::VectorXf>(pos_emb, config.embedding_dim, config.embedding_dim);
-//
-//
-//        // add position embedding to token embedding at this position
-//        output.row(pos) += Eigen::Map<const Eigen::VectorXf>(
-//            pos_emb, config.embedding_dim);
-//    }
-//
-//    // Debug position 0 values
-//    DBG("Position 0 embedding values:");
-//    for (int i = 0; i < 5; i++) {
-//        DBG(weights.position_embedding[i]);
-//    }
-//
-//    return output;
-//}
-
-//Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings) {
-//    int seq_len = std::min((int)token_embeddings.rows(), 32);
-//    Eigen::MatrixXf output = token_embeddings;
-//
-//    for (int pos = 0; pos < seq_len; pos++) {
-//        // Start reading one position earlier in the position embeddings
-//        const float* pos_emb = weights.position_embedding.data() + (pos * config.embedding_dim) - config.embedding_dim;
-//        output.row(pos) += Eigen::Map<const Eigen::VectorXf>(pos_emb, config.embedding_dim);
-//    }
-//
-//    return output;
-//}
-
 Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings) {
     int seq_len = std::min((int)token_embeddings.rows(), 32);
     Eigen::MatrixXf output = token_embeddings;
@@ -183,12 +200,6 @@ Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& t
     for (int pos = 0; pos < seq_len; pos++) {
         const float* pos_emb = base_pos_emb + pos * config.embedding_dim;
         output.row(pos) += Eigen::Map<const Eigen::VectorXf>(pos_emb, config.embedding_dim);
-
-        //// Debug first few values
-        //if (pos < 2) {
-        //    DBG("Position " << pos << " first 3 values: "
-        //        << pos_emb[0] << ", " << pos_emb[1] << ", " << pos_emb[2]);
-        //}
     }
     return output;
 }
@@ -251,31 +262,11 @@ bool MelodicInference::test_position_embeddings() {
     }
     DBG("Raw position embeddings match Python values");
 
-    //// Now test the combined embeddings
-    //std::vector<int> test_tokens = { 60, 45 };
-    //auto token_emb = getTokenEmbeddings(test_tokens);
-    //auto result = addPositionEmbeddings(token_emb);
-
-    //// Combined values (token + position) for first position
-    //float expected_combined[5] = { -1.5884430f, -2.3042361f, -0.3410752f, -1.5191745f, -0.3690222f };
-
-    //for (int i = 0; i < 5; i++) {
-    //    float diff = std::abs(result(0, i) - expected_combined[i]);
-    //    if (diff > 0.1f) {
-    //        DBG("Combined embedding test failed at " << i);
-    //        DBG("Expected: " << expected_combined[i] << " Got: " << result(0, i));
-    //        return false;
-    //    }
-    //}
-
-
-    //std::vector<int> test_tokens = { 60, 45 };
-    // Convert strings to correct token indices
     std::vector<int> test_tokens = { tokenToIdx["60"], tokenToIdx["45"] };
     DBG("\nDebug - Using token indices: " << test_tokens[0] << ", " << test_tokens[1]);
 
     
-    auto token_emb = getTokenEmbeddings2(test_tokens);
+    auto token_emb = getTokenEmbeddings(test_tokens);
 
     DBG("\nToken embedding first 5 values:");
     for (int i = 0; i < 5; i++) {
