@@ -98,21 +98,10 @@ bool MelodicInference::loadTokenEmbeddings(const std::string& filename) {
         dims.push_back(stream.readInt());
     }
 
-    //DBG("Token embeddings dimensions:");
-    //for (auto dim : dims) {
-    //    DBG(" - " << dim);
-    //}
-
     // Allocate and read data
     size_t totalSize = config.vocab_size * config.embedding_dim;
     weights.token_embedding.resize(totalSize);
     bool success = stream.read(weights.token_embedding.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
-
-    //// Debug first 5 values
-    //DBG("First 5 token embedding values:");
-    //for (int i = 0; i < 5; i++) {
-    //    DBG(weights.token_embedding[i]);
-    //}
 
     return success;
 }
@@ -137,24 +126,66 @@ bool MelodicInference::loadPositionEmbeddings(const std::string& filename) {
         dims.push_back(stream.readInt());
     }
 
-    //DBG("Position embeddings dimensions:");
-    //for (auto dim : dims) {
-    //    DBG(" - " << dim);
-    //}
-
     // Allocate and read data
     size_t totalSize = 32 * config.embedding_dim;
     weights.position_embedding.resize(totalSize);
     bool success = stream.read(weights.position_embedding.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
 
-    //// Debug first 5 values
-    //DBG("First 5 position embedding values:");
-    //for (int i = 0; i < 5; i++) {
-    //    DBG(weights.position_embedding[i]);
-    //}
-
     return success;
 }
+
+
+bool MelodicInference::loadAttentionWeights() {
+    // Load QKV weights
+    juce::File qkvFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\attention_qkv.bin)");
+
+    if (!qkvFile.existsAsFile()) {
+        DBG("QKV weights file not found");
+        return false;
+    }
+
+    juce::FileInputStream stream(qkvFile);
+    if (stream.failedToOpen()) return false;
+
+    // Read dimensions
+    int32_t numDims = stream.readInt();
+    std::vector<int32_t> dims;
+    for (int i = 0; i < numDims; i++) {
+        dims.push_back(stream.readInt());
+    }
+
+    // Allocate and read data
+    size_t totalSize = 3 * config.embedding_dim * config.embedding_dim; // 3x for Q,K,V
+    weights.attention_qkv.resize(totalSize);
+    return stream.read(weights.attention_qkv.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+}
+
+
+bool MelodicInference::loadAttentionBias() {
+    juce::File biasFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\attention_bias.bin)");
+
+    if (!biasFile.existsAsFile()) {
+        DBG("Attention bias file not found");
+        return false;
+    }
+
+    juce::FileInputStream stream(biasFile);
+    if (stream.failedToOpen()) return false;
+
+    // Read dimensions
+    int32_t numDims = stream.readInt();
+    std::vector<int32_t> dims;
+    for (int i = 0; i < numDims; i++) {
+        dims.push_back(stream.readInt());
+    }
+
+    // Allocate and read data  
+    size_t totalSize = 3 * config.embedding_dim; // 3x for Q,K,V biases
+    weights.attention_bias.resize(totalSize);
+    return stream.read(weights.attention_bias.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+}
+
+
 
 
 
@@ -175,15 +206,6 @@ Eigen::MatrixXf MelodicInference::getTokenEmbeddings(const std::vector<int>& inp
 
     for (int i = 0; i < input_tokens.size(); i++) {
         int token_idx = input_tokens[i];
-
-        //// Debug inside the loop
-        //if (token_idx == 60) {
-        //    DBG("Token " << token_idx << " embedding starts at offset: " << (token_idx * config.embedding_dim));
-        //    DBG("First 5 values in weights.token_embedding:");
-        //    for (int j = 0; j < 5; j++) {
-        //        DBG(weights.token_embedding[token_idx * config.embedding_dim + j]);
-        //    }
-        //}
 
         const float* token_emb = weights.token_embedding.data() + token_idx * config.embedding_dim;
         embeddings.row(i) = Eigen::Map<const Eigen::VectorXf>(token_emb, config.embedding_dim);
@@ -206,6 +228,9 @@ Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& t
     }
     return output;
 }
+
+
+
 
 Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embeddings) {
     // TODO: Implement self-attention using weights.attention_*

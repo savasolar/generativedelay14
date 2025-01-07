@@ -34,6 +34,15 @@ private:
         std::vector<float> output_bias;
     };
 
+
+    bool loadConfig(const std::string& filename);
+    bool loadTokenEmbeddings(const std::string& filename);
+    bool loadPositionEmbeddings(const std::string& filename);
+
+    bool loadAttentionWeights();
+    bool loadAttentionBias();
+
+
     Eigen::MatrixXf getTokenEmbeddings(const std::vector<int>& input_tokens);
     Eigen::MatrixXf addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings);
     Eigen::MatrixXf computeAttention(const Eigen::MatrixXf& embeddings);
@@ -41,10 +50,9 @@ private:
     Eigen::VectorXf computeLogits(const Eigen::MatrixXf& lstm_output);
     Eigen::VectorXf forward(const std::vector<int>& tokens);
 
-    bool loadFromBinaryData();
-    bool loadConfig(const std::string& filename);
-    bool loadTokenEmbeddings(const std::string& filename);
-    bool loadPositionEmbeddings(const std::string& filename);
+//    bool loadFromBinaryData();
+
+
 
     ModelWeights weights;
     ModelConfig config;
@@ -53,5 +61,5 @@ private:
 
 
     bool test_embedding_simple();
-    bool test_position_embeddings();
+//    bool test_position_embeddings();
 };
