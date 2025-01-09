@@ -11,11 +11,13 @@ bool MelodicInference::loadModel() {
 
     // load each weight matrix separately
     if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
-        !loadPositionEmbeddings("model_weights/position_embedding.bin")) {
+        !loadPositionEmbeddings("model_weights/position_embedding.bin") ||
+        !loadAttentionWeights() ||     // Add these
+        !loadAttentionBias()) {        // two calls
         return false;
     }
 
-    return test_embedding_simple()/* && test_position_embeddings()*/;
+    return true;//test_embedding_simple()/* && test_position_embeddings()*/;
 }
 
 bool MelodicInference::loadConfig(const std::string& filename) {
@@ -157,7 +159,33 @@ bool MelodicInference::loadAttentionWeights() {
     // Allocate and read data
     size_t totalSize = 3 * config.embedding_dim * config.embedding_dim; // 3x for Q,K,V
     weights.attention_qkv.resize(totalSize);
-    return stream.read(weights.attention_qkv.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+    
+    bool success = stream.read(weights.attention_qkv.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+
+    if (success) {
+        DBG("\nLoaded attention weights verification:");
+
+        // Print first row of Q weight
+        DBG("Q weight first row:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_qkv[i]);
+        }
+
+        // Print first row of K weight
+        DBG("\nK weight first row:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_qkv[config.embedding_dim * config.embedding_dim + i]);
+        }
+
+        // Print first row of V weight
+        DBG("\nV weight first row:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_qkv[2 * config.embedding_dim * config.embedding_dim + i]);
+        }
+    }
+
+    return success;
+
 }
 
 
@@ -182,7 +210,33 @@ bool MelodicInference::loadAttentionBias() {
     // Allocate and read data  
     size_t totalSize = 3 * config.embedding_dim; // 3x for Q,K,V biases
     weights.attention_bias.resize(totalSize);
-    return stream.read(weights.attention_bias.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+    
+    bool success = stream.read(weights.attention_bias.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
+
+    if (success) {
+        DBG("\nLoaded attention bias verification:");
+
+        // Print Q bias
+        DBG("Q bias:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_bias[i]);
+        }
+
+        // Print K bias
+        DBG("\nK bias:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_bias[config.embedding_dim + i]);
+        }
+
+        // Print V bias
+        DBG("\nV bias:");
+        for (int i = 0; i < config.embedding_dim; i++) {
+            DBG(weights.attention_bias[2 * config.embedding_dim + i]);
+        }
+    }
+
+    return success;
+
 }
 
 
@@ -233,8 +287,76 @@ Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& t
 
 
 Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embeddings) {
-    // TODO: Implement self-attention using weights.attention_*
-    return Eigen::MatrixXf();
+
+    // get q, k, v weights and biases
+    const float* q_weight = weights.attention_qkv.data();
+    const float* k_weight = weights.attention_qkv.data() + config.embedding_dim * config.embedding_dim;
+    const float* v_weight = weights.attention_qkv.data() + 2 * config.embedding_dim * config.embedding_dim;
+    
+    const float* q_bias = weights.attention_bias.data();
+    const float* k_bias = weights.attention_bias.data() + config.embedding_dim;
+    const float* v_bias = weights.attention_bias.data() + 2 * config.embedding_dim;
+
+    // project q, k, v using weights and biases
+    Eigen::MatrixXf Q = (embeddings * Eigen::Map<const Eigen::MatrixXf>(q_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(q_bias, config.embedding_dim).transpose();
+    Eigen::MatrixXf K = (embeddings * Eigen::Map<const Eigen::MatrixXf>(k_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(k_bias, config.embedding_dim).transpose();
+    Eigen::MatrixXf V = (embeddings * Eigen::Map<const Eigen::MatrixXf>(v_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(v_bias, config.embedding_dim).transpose();
+
+    // add debug prints
+    DBG("\nQ first 5 values:");
+    for (int i = 0; i < 5; i++) DBG(Q(0, i));
+
+
+
+    // Scale Q
+    float scale = 1.0f / std::sqrt(config.embedding_dim);
+    Q *= scale;
+
+    // Compute attention scores
+    Eigen::MatrixXf scores = Q * K.transpose();
+
+    // Create attention mask
+    int seq_len = embeddings.rows();
+    Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
+    int window_size = 8;
+
+    for (int i = 0; i < seq_len; i++) {
+        int start = std::max(0, i - window_size);
+        int end = std::min(seq_len, i + window_size + 1);
+        mask.block(i, start, 1, end - start).setZero();
+    }
+
+    // Apply mask and -inf
+    scores = (mask.array() == 0).select(scores, -std::numeric_limits<float>::infinity());
+
+    DBG("\nScores after masking (first row):");
+    for (int i = 0; i < 5; i++) DBG(scores(0, i));
+
+
+
+
+
+
+    // Apply softmax row-wise
+    Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
+    for (int i = 0; i < seq_len; i++) {
+        // Get max for numerical stability
+        float max_val = scores.row(i).maxCoeff();
+        Eigen::VectorXf exp_scores = (scores.row(i).array() - max_val).exp();
+        attention_weights.row(i) = exp_scores / exp_scores.sum();
+    }
+
+    // Final multiplication with V
+    Eigen::MatrixXf output = attention_weights * V;
+
+    DBG("\nAttention output (first row):");
+    for (int i = 0; i < 5; i++) DBG(output(0, i));
+
+    return output;
+
+
+
+
 }
 
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
