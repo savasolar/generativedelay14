@@ -50,7 +50,7 @@ private:
     Eigen::VectorXf computeLogits(const Eigen::MatrixXf& lstm_output);
     Eigen::VectorXf forward(const std::vector<int>& tokens);
 
-//    bool loadFromBinaryData();
+
 
 
 
@@ -61,5 +61,8 @@ private:
 
 
     bool test_embedding_simple();
-//    bool test_position_embeddings();
+
+
+    bool test_attention();
+
 };

@@ -12,12 +12,15 @@ bool MelodicInference::loadModel() {
     // load each weight matrix separately
     if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
         !loadPositionEmbeddings("model_weights/position_embedding.bin") ||
-        !loadAttentionWeights() ||     // Add these
-        !loadAttentionBias()) {        // two calls
+        !loadAttentionWeights() ||
+        !loadAttentionBias()) {
         return false;
     }
 
-    return true;//test_embedding_simple()/* && test_position_embeddings()*/;
+    //return true;//test_embedding_simple()/* && test_position_embeddings()*/;
+
+    return test_attention();
+
 }
 
 bool MelodicInference::loadConfig(const std::string& filename) {
@@ -162,27 +165,27 @@ bool MelodicInference::loadAttentionWeights() {
     
     bool success = stream.read(weights.attention_qkv.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
 
-    if (success) {
-        DBG("\nLoaded attention weights verification:");
+    //if (success) {
+    //    DBG("\nLoaded attention weights verification:");
 
-        // Print first row of Q weight
-        DBG("Q weight first row:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_qkv[i]);
-        }
+    //    // Print first row of Q weight
+    //    DBG("Q weight first row:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_qkv[i]);
+    //    }
 
-        // Print first row of K weight
-        DBG("\nK weight first row:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_qkv[config.embedding_dim * config.embedding_dim + i]);
-        }
+    //    // Print first row of K weight
+    //    DBG("\nK weight first row:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_qkv[config.embedding_dim * config.embedding_dim + i]);
+    //    }
 
-        // Print first row of V weight
-        DBG("\nV weight first row:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_qkv[2 * config.embedding_dim * config.embedding_dim + i]);
-        }
-    }
+    //    // Print first row of V weight
+    //    DBG("\nV weight first row:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_qkv[2 * config.embedding_dim * config.embedding_dim + i]);
+    //    }
+    //}
 
     return success;
 
@@ -213,27 +216,27 @@ bool MelodicInference::loadAttentionBias() {
     
     bool success = stream.read(weights.attention_bias.data(), totalSize * sizeof(float)) == totalSize * sizeof(float);
 
-    if (success) {
-        DBG("\nLoaded attention bias verification:");
+    //if (success) {
+    //    DBG("\nLoaded attention bias verification:");
 
-        // Print Q bias
-        DBG("Q bias:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_bias[i]);
-        }
+    //    // Print Q bias
+    //    DBG("Q bias:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_bias[i]);
+    //    }
 
-        // Print K bias
-        DBG("\nK bias:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_bias[config.embedding_dim + i]);
-        }
+    //    // Print K bias
+    //    DBG("\nK bias:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_bias[config.embedding_dim + i]);
+    //    }
 
-        // Print V bias
-        DBG("\nV bias:");
-        for (int i = 0; i < config.embedding_dim; i++) {
-            DBG(weights.attention_bias[2 * config.embedding_dim + i]);
-        }
-    }
+    //    // Print V bias
+    //    DBG("\nV bias:");
+    //    for (int i = 0; i < config.embedding_dim; i++) {
+    //        DBG(weights.attention_bias[2 * config.embedding_dim + i]);
+    //    }
+    //}
 
     return success;
 
@@ -403,3 +406,11 @@ bool MelodicInference::test_embedding_simple() {
     return true;
 }
 
+
+bool MelodicInference::test_attention() {
+    std::vector<int> test_tokens = { tokenToIdx["60"], tokenToIdx["45"] };
+    auto token_emb = getTokenEmbeddings(test_tokens);
+    auto combined = addPositionEmbeddings(token_emb);
+    auto attn_output = computeAttention(combined);
+    return true;
+}
