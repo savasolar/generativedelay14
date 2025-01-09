@@ -42,21 +42,9 @@ bool MelodicInference::loadConfig(const std::string& filename) {
     config.embedding_dim = stream.readInt();
     config.hidden_size = stream.readInt();
 
-    DBG("\nToken mapping debug - Reading:");
+    //DBG("\nToken mapping debug - Reading:");
     // Read token mappings
-    /*while (!stream.isExhausted()) {
-        int32_t tokenLen = stream.readInt();
-        if (stream.isExhausted()) break;
-
-        juce::String token = stream.readString();
-        int32_t idx = stream.readInt();
-
-        DBG("Token '" << token.toStdString() << "' -> index " << idx);
-
-        tokenToIdx[token.toStdString()] = idx;
-        idxToToken[idx] = token.toStdString();
-    }*/
-
+    
     while (!stream.isExhausted()) {
         // Read token length
         int32_t tokenLen = stream.readInt();
@@ -73,7 +61,7 @@ bool MelodicInference::loadConfig(const std::string& filename) {
         // Read token index
         int32_t idx = stream.readInt();
 
-        DBG("Token '" << token << "' -> index " << idx);
+        //DBG("Token '" << token << "' -> index " << idx);
 
         tokenToIdx[token] = idx;
         idxToToken[idx] = token;
@@ -408,9 +396,16 @@ bool MelodicInference::test_embedding_simple() {
 
 
 bool MelodicInference::test_attention() {
+    
+    // Create input of size [129, 32] to match Python
+    Eigen::MatrixXf test_input = Eigen::MatrixXf::Zero(129, config.embedding_dim);
+    // Fill first rows with actual token embeddings
     std::vector<int> test_tokens = { tokenToIdx["60"], tokenToIdx["45"] };
     auto token_emb = getTokenEmbeddings(test_tokens);
     auto combined = addPositionEmbeddings(token_emb);
-    auto attn_output = computeAttention(combined);
+    test_input.topRows(combined.rows()) = combined;
+
+    auto attn_output = computeAttention(test_input);
     return true;
+
 }
