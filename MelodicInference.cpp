@@ -279,19 +279,22 @@ Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& t
 
 Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embeddings) {
 
-    // get q, k, v weights and biases
-    const float* q_weight = weights.attention_qkv.data();
-    const float* k_weight = weights.attention_qkv.data() + config.embedding_dim * config.embedding_dim;
-    const float* v_weight = weights.attention_qkv.data() + 2 * config.embedding_dim * config.embedding_dim;
-    
-    const float* q_bias = weights.attention_bias.data();
-    const float* k_bias = weights.attention_bias.data() + config.embedding_dim;
-    const float* v_bias = weights.attention_bias.data() + 2 * config.embedding_dim;
+    // Map weights to Eigen matrices with correct layout
+    Eigen::Map<const Eigen::MatrixXf> q_weight_mat(weights.attention_qkv.data(),
+        config.embedding_dim, config.embedding_dim);
+    Eigen::Map<const Eigen::MatrixXf> k_weight_mat(weights.attention_qkv.data() + config.embedding_dim * config.embedding_dim,
+        config.embedding_dim, config.embedding_dim);
+    Eigen::Map<const Eigen::MatrixXf> v_weight_mat(weights.attention_qkv.data() + 2 * config.embedding_dim * config.embedding_dim,
+        config.embedding_dim, config.embedding_dim);
 
-    // project q, k, v using weights and biases
-    Eigen::MatrixXf Q = (embeddings * Eigen::Map<const Eigen::MatrixXf>(q_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(q_bias, config.embedding_dim).transpose();
-    Eigen::MatrixXf K = (embeddings * Eigen::Map<const Eigen::MatrixXf>(k_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(k_bias, config.embedding_dim).transpose();
-    Eigen::MatrixXf V = (embeddings * Eigen::Map<const Eigen::MatrixXf>(v_weight, config.embedding_dim, config.embedding_dim).transpose()).rowwise() + Eigen::Map<const Eigen::VectorXf>(v_bias, config.embedding_dim).transpose();
+    // Linear projections matching PyTorch F.linear
+    Eigen::MatrixXf Q = embeddings * q_weight_mat + Eigen::Map<const Eigen::VectorXf>(weights.attention_bias.data(),
+        config.embedding_dim).replicate(1, embeddings.rows()).transpose();
+    Eigen::MatrixXf K = embeddings * k_weight_mat + Eigen::Map<const Eigen::VectorXf>(weights.attention_bias.data() + config.embedding_dim,
+        config.embedding_dim).replicate(1, embeddings.rows()).transpose();
+    Eigen::MatrixXf V = embeddings * v_weight_mat + Eigen::Map<const Eigen::VectorXf>(weights.attention_bias.data() + 2 * config.embedding_dim,
+        config.embedding_dim).replicate(1, embeddings.rows()).transpose();
+
 
     // add debug prints
     DBG("\nQ first 5 values:");
@@ -318,7 +321,9 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     }
 
     // Apply mask and -inf
-    scores = (mask.array() == 0).select(scores, -std::numeric_limits<float>::infinity());
+    //scores = (mask.array() == 0).select(scores, -std::numeric_limits<float>::infinity());
+    scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
+
 
     DBG("\nScores after masking (first row):");
     for (int i = 0; i < 5; i++) DBG(scores(0, i));
