@@ -309,20 +309,36 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     // Compute attention scores
     Eigen::MatrixXf scores = Q * K.transpose();
 
+
+
+    //// Create attention mask
+    //int seq_len = embeddings.rows();
+    //Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
+    //int window_size = 8;
+
+    //for (int i = 0; i < seq_len; i++) {
+    //    int start = std::max(0, i - window_size);
+    //    int end = std::min(seq_len, i + window_size + 1);
+    //    mask.block(i, start, 1, end - start).setZero();
+    //}
+
+    //// Apply mask and -inf
+    ////scores = (mask.array() == 0).select(scores, -std::numeric_limits<float>::infinity());
+    //scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
+    
+
     // Create attention mask
     int seq_len = embeddings.rows();
-    Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
     int window_size = 8;
-
+    Eigen::MatrixXf mask = Eigen::MatrixXf::Zero(seq_len, seq_len);  // Start with all zeroes
     for (int i = 0; i < seq_len; i++) {
+        mask.row(i).setConstant(1.0);  // Set row to all ones
         int start = std::max(0, i - window_size);
         int end = std::min(seq_len, i + window_size + 1);
-        mask.block(i, start, 1, end - start).setZero();
+        mask.block(i, start, 1, end - start).setZero();  // Set window positions to zero
     }
-
-    // Apply mask and -inf
-    //scores = (mask.array() == 0).select(scores, -std::numeric_limits<float>::infinity());
     scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
+
 
 
     DBG("\nScores after masking (first row):");
