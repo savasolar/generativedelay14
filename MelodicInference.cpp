@@ -330,15 +330,25 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     // Create attention mask
     int seq_len = embeddings.rows();
     int window_size = 8;
-    Eigen::MatrixXf mask = Eigen::MatrixXf::Zero(seq_len, seq_len);  // Start with all zeroes
+
+//    Eigen::MatrixXf mask = Eigen::MatrixXf::Zero(seq_len, seq_len);  // Start with all zeroes
+//    for (int i = 0; i < seq_len; i++) {
+//        mask.row(i).setConstant(1.0);  // Set row to all ones
+//        int start = std::max(0, i - window_size);
+//        int end = std::min(seq_len, i + window_size + 1);
+//        mask.block(i, start, 1, end - start).setZero();  // Set window positions to zero
+//    }
+////    scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
+//    scores = (mask.array() == 0).select(-std::numeric_limits<float>::infinity(), scores);
+
+
+    Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
     for (int i = 0; i < seq_len; i++) {
-        mask.row(i).setConstant(1.0);  // Set row to all ones
         int start = std::max(0, i - window_size);
-        int end = std::min(seq_len, i + window_size + 1);
-        mask.block(i, start, 1, end - start).setZero();  // Set window positions to zero
+        int end = std::min(seq_len, i + 1);
+        mask.block(i, start, 1, end - start).setZero();
     }
     scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
-
 
 
     DBG("\nScores after masking (first row):");
@@ -370,6 +380,8 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 
 
 }
+
+
 
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
     // TODO: Implement LSTM using weights.lstm_*
