@@ -52,6 +52,21 @@ private:
 
 
 
+    Eigen::MatrixXf processLSTMDirection(
+        const Eigen::MatrixXf& input,
+        const Eigen::MatrixXf& weight_ih,
+        const Eigen::MatrixXf& weight_hh,
+        const Eigen::VectorXf& bias,
+        bool reverse);
+
+    Eigen::MatrixXf computeGates(
+        const Eigen::VectorXf& x_t,
+        const Eigen::VectorXf& h_prev,
+        const Eigen::MatrixXf& w_ih,
+        const Eigen::MatrixXf& w_hh,
+        const Eigen::VectorXf& bias);
+
+
 
 
     ModelWeights weights;

@@ -361,6 +361,10 @@ Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_o
     return Eigen::MatrixXf();
 }
 
+
+
+
+
 Eigen::VectorXf MelodicInference::computeLogits(const Eigen::MatrixXf& lstm_output) {
     // TODO: Implement final linear layer using weights.output*
     return Eigen::VectorXf();
