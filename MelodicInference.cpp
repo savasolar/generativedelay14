@@ -1,5 +1,14 @@
 #include "MelodicInference.h"
 
+
+inline float sigmoid(float x) {
+    return 1.0f / (1.0f + std::exp(-x));
+}
+
+//inline float tanh(float x) {
+//    return std::tanh(x);
+//}
+
 MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
 
@@ -357,8 +366,183 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 
 
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
-    // TODO: Implement LSTM using weights.lstm_*
-    return Eigen::MatrixXf();
+    
+
+    int seq_len = attention_output.rows();
+
+    // Map weights for forward direction
+    Eigen::Map<const Eigen::MatrixXf> weight_ih_forward(
+        weights.lstm_ih.data(),
+        4 * config.hidden_size,  // 4 gates
+        config.embedding_dim
+    );
+
+    Eigen::Map<const Eigen::MatrixXf> weight_hh_forward(
+        weights.lstm_hh.data(),
+        4 * config.hidden_size,
+        config.hidden_size
+    );
+
+    // First half of bias is for forward direction
+    Eigen::Map<const Eigen::VectorXf> bias_forward(
+        weights.lstm_bias.data(),
+        4 * config.hidden_size
+    );
+
+    // Map weights for reverse direction - starting from halfway point in memory
+    Eigen::Map<const Eigen::MatrixXf> weight_ih_reverse(
+        weights.lstm_ih.data() + (4 * config.hidden_size * config.embedding_dim),
+        4 * config.hidden_size,
+        config.embedding_dim
+    );
+
+    Eigen::Map<const Eigen::MatrixXf> weight_hh_reverse(
+        weights.lstm_hh.data() + (4 * config.hidden_size * config.hidden_size),
+        4 * config.hidden_size,
+        config.hidden_size
+    );
+
+    // Second half of bias is for reverse direction
+    Eigen::Map<const Eigen::VectorXf> bias_reverse(
+        weights.lstm_bias.data() + (4 * config.hidden_size),
+        4 * config.hidden_size
+    );
+
+
+
+    // debug prints:
+    DBG("\nC++ LSTM debug:");
+    DBG("Input shape: " << attention_output.rows() << "x" << attention_output.cols());
+
+    DBG("\nLSTM weights:");
+    DBG("weight_ih_l0 shape: " << weight_ih_forward.rows() << "x" << weight_ih_forward.cols());
+    DBG("weight_hh_l0 shape: " << weight_hh_forward.rows() << "x" << weight_hh_forward.cols());
+    DBG("bias_ih_l0 shape: " << bias_forward.size());
+
+    DBG("weight_ih_l0 first row:");
+    for (int i = 0; i < weight_ih_forward.cols(); i++) {
+        DBG(weight_ih_forward(0, i));
+    }
+
+    DBG("weight_hh_l0 first row:");
+    for (int i = 0; i < weight_hh_forward.cols(); i++) {
+        DBG(weight_hh_forward(0, i));
+    }
+
+    DBG("bias_ih_l0:");
+    for (int i = 0; i < bias_forward.size(); i++) {
+        DBG(bias_forward(i));
+    }
+
+
+
+
+
+    // Process both directions
+    Eigen::MatrixXf forward_output = processLSTMDirection(
+        attention_output,
+        weight_ih_forward,
+        weight_hh_forward,
+        bias_forward,
+        false  // forward direction
+    );
+
+    Eigen::MatrixXf reverse_output = processLSTMDirection(
+        attention_output,
+        weight_ih_reverse,
+        weight_hh_reverse,
+        bias_reverse,
+        true  // reverse direction
+    );
+
+    // Concatenate outputs along hidden dimension
+    Eigen::MatrixXf combined_output(seq_len, 2 * config.hidden_size);
+    combined_output << forward_output, reverse_output;
+
+    return combined_output;
+
+
+}
+
+Eigen::MatrixXf MelodicInference::computeGates(
+    const Eigen::VectorXf& x_t,
+    const Eigen::VectorXf& h_prev,
+    const Eigen::MatrixXf& w_ih,
+    const Eigen::MatrixXf& w_hh,
+    const Eigen::VectorXf& bias) {
+
+    // Compute gates using matrix operations
+    Eigen::VectorXf gates = (w_ih * x_t) + (w_hh * h_prev) + bias;
+
+    // Split into individual gates
+    int gate_size = config.hidden_size;
+    Eigen::VectorXf i_g = gates.segment(0 * gate_size, gate_size);
+    Eigen::VectorXf f_g = gates.segment(1 * gate_size, gate_size);
+    Eigen::VectorXf g_g = gates.segment(2 * gate_size, gate_size);
+    Eigen::VectorXf o_g = gates.segment(3 * gate_size, gate_size);
+
+    // Apply activations
+    //i_g = i_g.array().sigmoid();
+    //f_g = f_g.array().sigmoid();
+    //g_g = g_g.array().tanh();
+    //o_g = o_g.array().sigmoid();
+
+    for (int i = 0; i < gate_size; i++) {
+        i_g[i] = sigmoid(i_g[i]);
+        f_g[i] = sigmoid(f_g[i]);
+        //g_g[i] = tanh(g_g[i]);
+        g_g[i] = std::tanh(g_g[i]);
+        o_g[i] = sigmoid(o_g[i]);
+    }
+
+    // Combine gates
+    Eigen::VectorXf combined(4 * gate_size);
+    combined << i_g, f_g, g_g, o_g;
+
+    return combined;
+}
+
+Eigen::MatrixXf MelodicInference::processLSTMDirection(
+    const Eigen::MatrixXf& input,
+    const Eigen::MatrixXf& weight_ih,
+    const Eigen::MatrixXf& weight_hh,
+    const Eigen::VectorXf& bias,
+    bool reverse) {
+
+    int seq_len = input.rows();
+    Eigen::MatrixXf output = Eigen::MatrixXf::Zero(seq_len, config.hidden_size);
+
+    // Initialize states
+    Eigen::VectorXf h_t = Eigen::VectorXf::Zero(config.hidden_size);
+    Eigen::VectorXf c_t = Eigen::VectorXf::Zero(config.hidden_size);
+
+    // Process sequence
+    for (int t = 0; t < seq_len; t++) {
+        int idx = reverse ? (seq_len - 1 - t) : t;
+
+        // Get input at current timestep
+        Eigen::VectorXf x_t = input.row(idx);
+
+        // Compute gates
+        Eigen::VectorXf gates = computeGates(x_t, h_t, weight_ih, weight_hh, bias);
+
+        // Extract individual gates
+        Eigen::VectorXf i_g = gates.segment(0, config.hidden_size);
+        Eigen::VectorXf f_g = gates.segment(config.hidden_size, config.hidden_size);
+        Eigen::VectorXf g_g = gates.segment(2 * config.hidden_size, config.hidden_size);
+        Eigen::VectorXf o_g = gates.segment(3 * config.hidden_size, config.hidden_size);
+
+        // Update cell state
+        c_t = f_g.array() * c_t.array() + i_g.array() * g_g.array();
+
+        // Update hidden state
+        h_t = o_g.array() * c_t.array().tanh();
+
+        // Store output
+        output.row(idx) = h_t;
+    }
+
+    return output;
 }
 
 
@@ -405,6 +589,8 @@ bool MelodicInference::test_embedding_simple() {
 }
 
 
+
+
 bool MelodicInference::test_attention() {
     
     // Create input of size [129, 32] to match Python
@@ -416,6 +602,8 @@ bool MelodicInference::test_attention() {
     test_input.topRows(combined.rows()) = combined;
 
     auto attn_output = computeAttention(test_input);
+    auto lstm_output = processLSTM(attn_output);
+
     return true;
 
 }

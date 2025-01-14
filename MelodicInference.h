@@ -51,6 +51,14 @@ private:
     Eigen::VectorXf forward(const std::vector<int>& tokens);
 
 
+    Eigen::MatrixXf computeGates(
+        const Eigen::VectorXf& x_t,
+        const Eigen::VectorXf& h_prev,
+        const Eigen::MatrixXf& w_ih,
+        const Eigen::MatrixXf& w_hh,
+        const Eigen::VectorXf& bias);
+
+
 
     Eigen::MatrixXf processLSTMDirection(
         const Eigen::MatrixXf& input,
@@ -59,13 +67,7 @@ private:
         const Eigen::VectorXf& bias,
         bool reverse);
 
-    Eigen::MatrixXf computeGates(
-        const Eigen::VectorXf& x_t,
-        const Eigen::VectorXf& h_prev,
-        const Eigen::MatrixXf& w_ih,
-        const Eigen::MatrixXf& w_hh,
-        const Eigen::VectorXf& bias);
-
+    
 
 
 
