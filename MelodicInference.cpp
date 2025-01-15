@@ -5,10 +5,6 @@ inline float sigmoid(float x) {
     return 1.0f / (1.0f + std::exp(-x));
 }
 
-//inline float tanh(float x) {
-//    return std::tanh(x);
-//}
-
 MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
 
@@ -137,7 +133,6 @@ bool MelodicInference::loadPositionEmbeddings(const std::string& filename) {
     return success;
 }
 
-
 bool MelodicInference::loadAttentionWeights() {
     // Load QKV weights
     juce::File qkvFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\attention_qkv.bin)");
@@ -188,7 +183,6 @@ bool MelodicInference::loadAttentionWeights() {
     return success;
 
 }
-
 
 bool MelodicInference::loadAttentionBias() {
     juce::File biasFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\attention_bias.bin)");
@@ -251,17 +245,34 @@ bool MelodicInference::loadLSTMWeights() {
     if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) return false;
 
     // Load dimensions
-    ihStream.readInt(); hhStream.readInt(); biasStream.readInt();
+    ihStream.readInt();
+    hhStream.readInt();
+    biasStream.readInt();
 
-    // Allocate
-    weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
-    weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
-    weights.lstm_bias.resize(4 * config.hidden_size);
+    //// Allocate
+    //weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
+    //weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
+    //weights.lstm_bias.resize(4 * config.hidden_size);
 
-    // Read data
-    return ihStream.read(weights.lstm_ih.data(), weights.lstm_ih.size() * sizeof(float)) == weights.lstm_ih.size() * sizeof(float) &&
-        hhStream.read(weights.lstm_hh.data(), weights.lstm_hh.size() * sizeof(float)) == weights.lstm_hh.size() * sizeof(float) &&
-        biasStream.read(weights.lstm_bias.data(), weights.lstm_bias.size() * sizeof(float)) == weights.lstm_bias.size() * sizeof(float);
+    // Allocate without padding
+    size_t ih_size = 4 * config.hidden_size * config.embedding_dim;
+    size_t hh_size = 4 * config.hidden_size * config.hidden_size;
+    size_t bias_size = 4 * config.hidden_size;
+    weights.lstm_ih.resize(ih_size);
+    weights.lstm_hh.resize(hh_size);
+    weights.lstm_bias.resize(bias_size);
+
+    //// Read data
+    //return ihStream.read(weights.lstm_ih.data(), weights.lstm_ih.size() * sizeof(float)) == weights.lstm_ih.size() * sizeof(float) &&
+    //    hhStream.read(weights.lstm_hh.data(), weights.lstm_hh.size() * sizeof(float)) == weights.lstm_hh.size() * sizeof(float) &&
+    //    biasStream.read(weights.lstm_bias.data(), weights.lstm_bias.size() * sizeof(float)) == weights.lstm_bias.size() * sizeof(float);
+
+
+    // Direct read into vectors
+    return ihStream.read(weights.lstm_ih.data(), ih_size * sizeof(float)) == ih_size * sizeof(float) &&
+        hhStream.read(weights.lstm_hh.data(), hh_size * sizeof(float)) == hh_size * sizeof(float) &&
+        biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float)) == bias_size * sizeof(float);
+
 }
 
 
