@@ -249,6 +249,34 @@ bool MelodicInference::loadLSTMWeights() {
     hhStream.readInt();
     biasStream.readInt();
 
+
+
+    ihStream.readInt();
+    hhStream.readInt();
+    biasStream.readInt();
+
+    ihStream.setPosition(12);
+    hhStream.setPosition(12);
+    biasStream.setPosition(12);
+
+    // Debug reads for both files
+    std::vector<uint8_t> raw_bytes_ih(9);
+    std::vector<uint8_t> raw_bytes_hh(9);
+    ihStream.read(raw_bytes_ih.data(), 9);
+    hhStream.read(raw_bytes_hh.data(), 9);
+
+    DBG("\nFirst 9 bytes read from ih file:");
+    for (int i = 0; i < 9; i++) {
+        DBG((int)raw_bytes_ih[i]);
+    }
+
+    DBG("\nFirst 9 bytes read from hh file:");
+    for (int i = 0; i < 9; i++) {
+        DBG((int)raw_bytes_hh[i]);
+    }
+
+
+
     //// Allocate
     //weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
     //weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
