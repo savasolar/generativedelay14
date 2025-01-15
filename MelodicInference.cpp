@@ -23,8 +23,6 @@ bool MelodicInference::loadModel() {
         return false;
     }
 
-    //return true;//test_embedding_simple()/* && test_position_embeddings()*/;
-
     return test_attention();
 
 }
