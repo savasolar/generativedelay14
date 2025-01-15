@@ -545,11 +545,7 @@ Eigen::MatrixXf MelodicInference::computeGates(
     Eigen::VectorXf g_g = gates.segment(2 * gate_size, gate_size);
     Eigen::VectorXf o_g = gates.segment(3 * gate_size, gate_size);
 
-    // Apply activations
-    //i_g = i_g.array().sigmoid();
-    //f_g = f_g.array().sigmoid();
-    //g_g = g_g.array().tanh();
-    //o_g = o_g.array().sigmoid();
+
 
     for (int i = 0; i < gate_size; i++) {
         i_g[i] = sigmoid(i_g[i]);
