@@ -325,8 +325,6 @@ bool MelodicInference::loadLSTMWeights() {
 
         bool ih_read = ihStream.read(weights.lstm_ih.data(), ih_size * sizeof(float)) == ih_size * sizeof(float);
         bool hh_read = hhStream.read(weights.lstm_hh.data(), hh_size * sizeof(float)) == hh_size * sizeof(float);
-//        bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float)) == bias_size * sizeof(float);
-//        bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * 2 * sizeof(float)) == bias_size * 2 * sizeof(float);
         bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float));
 
         if (!ih_read || !hh_read || !bias_read) {
