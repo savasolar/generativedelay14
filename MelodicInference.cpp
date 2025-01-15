@@ -292,14 +292,16 @@ bool MelodicInference::loadLSTMWeights() {
     hhStream.read(raw_bytes_hh.data(), 9);
     biasStream.read(raw_bytes_bias.data(), 9);
 
-    DBG("\nFirst 9 bytes read from ih file:");
-    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_ih[i]); }
+    //DBG("\nFirst 9 bytes read from ih file:");
+    //for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_ih[i]); }
 
-    DBG("\nFirst 9 bytes read from hh file:");
-    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_hh[i]); }
+    //DBG("\nFirst 9 bytes read from hh file:");
+    //for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_hh[i]); }
 
-    DBG("\nFirst 9 bytes read from bias file:");
-    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_bias[i]); }
+    //DBG("\nFirst 9 bytes read from bias file:");
+    //for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_bias[i]); }
+
+
 
     // Reset after debug read
     ihStream.setPosition(12);
@@ -474,111 +476,39 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
     
     DBG("Entering processLSTM");
-
     int seq_len = attention_output.rows();
 
-    // Map weights for forward direction
-    Eigen::Map<const Eigen::MatrixXf> weight_ih_forward(
-        weights.lstm_ih.data(),
-        4 * config.hidden_size,  // 4 gates
-        config.embedding_dim
-    );
-
-    Eigen::Map<const Eigen::MatrixXf> weight_hh_forward(
-        weights.lstm_hh.data(),
-        4 * config.hidden_size,
-        config.hidden_size
-    );
-
-    // First half of bias is for forward direction
-    Eigen::Map<const Eigen::VectorXf> bias_forward(
-        weights.lstm_bias.data(),
-        4 * config.hidden_size
-    );
-
-    // Map weights for reverse direction - starting from halfway point in memory
-    Eigen::Map<const Eigen::MatrixXf> weight_ih_reverse(
-        weights.lstm_ih.data() + (4 * config.hidden_size * config.embedding_dim),
-        4 * config.hidden_size,
-        config.embedding_dim
-    );
-
-    Eigen::Map<const Eigen::MatrixXf> weight_hh_reverse(
-        weights.lstm_hh.data() + (4 * config.hidden_size * config.hidden_size),
-        4 * config.hidden_size,
-        config.hidden_size
-    );
-
-    // Second half of bias is for reverse direction
-    Eigen::Map<const Eigen::VectorXf> bias_reverse(
-        weights.lstm_bias.data() + (4 * config.hidden_size),
-        4 * config.hidden_size
-    );
-
-
-
+    // Forward direction weights
+    Eigen::Map<const Eigen::MatrixXf> w_ih(weights.lstm_ih.data(),
+        4 * config.hidden_size, config.embedding_dim);
+    Eigen::Map<const Eigen::MatrixXf> w_hh(weights.lstm_hh.data(),
+        4 * config.hidden_size, config.hidden_size);
+    Eigen::Map<const Eigen::VectorXf> bias(weights.lstm_bias.data(),
+        4 * config.hidden_size);
 
     DBG("\nFirst 5 values after mapping:");
-    DBG("weight_ih_l0:");
-    for (int i = 0; i < 5; i++) {
-        DBG(weight_ih_forward(0, i));
-    }
-    DBG("\nbias_ih_l0:");
-    for (int i = 0; i < 5; i++) {
-        DBG(bias_forward(i));
-    }
-
-    // debug prints:
-    DBG("\nC++ LSTM debug:");
-    DBG("Input shape: " << attention_output.rows() << "x" << attention_output.cols());
-
-    DBG("\nLSTM weights:");
-    DBG("weight_ih_l0 shape: " << weight_ih_forward.rows() << "x" << weight_ih_forward.cols());
-    DBG("weight_hh_l0 shape: " << weight_hh_forward.rows() << "x" << weight_hh_forward.cols());
-    DBG("bias_ih_l0 shape: " << bias_forward.size());
-
     DBG("weight_ih_l0 first row:");
-    for (int i = 0; i < weight_ih_forward.cols(); i++) {
-        DBG(weight_ih_forward(0, i));
-    }
+    for (int i = 0; i < 5; i++) DBG(w_ih(0, i));
+    DBG("bias_ih_l0 first 5:");
+    for (int i = 0; i < 5; i++) DBG(bias(i));
 
-    DBG("weight_hh_l0 first row:");
-    for (int i = 0; i < weight_hh_forward.cols(); i++) {
-        DBG(weight_hh_forward(0, i));
-    }
-
-    DBG("bias_ih_l0:");
-    for (int i = 0; i < bias_forward.size(); i++) {
-        DBG(bias_forward(i));
-    }
-
-
-
-
+    DBG("\nLSTM weights shapes:");
+    DBG("weight_ih shape: " << w_ih.rows() << "x" << w_ih.cols());
+    DBG("weight_hh shape: " << w_hh.rows() << "x" << w_hh.cols());
+    DBG("bias shape: " << bias.size());
 
     // Process both directions
-    Eigen::MatrixXf forward_output = processLSTMDirection(
-        attention_output,
-        weight_ih_forward,
-        weight_hh_forward,
-        bias_forward,
-        false  // forward direction
-    );
+    auto fwd = processLSTMDirection(attention_output, w_ih, w_hh, bias, false);
+    auto rev = processLSTMDirection(attention_output, w_ih, w_hh, bias, true);
 
-    Eigen::MatrixXf reverse_output = processLSTMDirection(
-        attention_output,
-        weight_ih_reverse,
-        weight_hh_reverse,
-        bias_reverse,
-        true  // reverse direction
-    );
+    Eigen::MatrixXf output(seq_len, 2 * config.hidden_size);
+    output << fwd, rev;
 
-    // Concatenate outputs along hidden dimension
-    Eigen::MatrixXf combined_output(seq_len, 2 * config.hidden_size);
-    combined_output << forward_output, reverse_output;
+    DBG("\nLSTM output shape: " << output.rows() << "x" << output.cols());
+    DBG("First 5 output values:");
+    for (int i = 0; i < 5; i++) DBG(output(0, i));
 
-    return combined_output;
-
+    return output;
 
 }
 
