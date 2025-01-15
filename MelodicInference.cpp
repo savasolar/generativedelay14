@@ -11,20 +11,39 @@ MelodicInference::~MelodicInference() {}
 bool MelodicInference::loadModel() {
     // first load config and token mappings
     if (!loadConfig("model_weights/config.bin")) {
+        DBG("config loading failed");
         return false;
     }
+
+    //// load each weight matrix separately
+    //if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
+    //    !loadPositionEmbeddings("model_weights/position_embedding.bin") ||
+    //    !loadAttentionWeights() ||
+    //    !loadAttentionBias() ||
+    //    !loadLSTMWeights()) {
+    //    return false;
+    //}
+
+    //DBG("loadModel check"); // Add this
+
+    //return test_attention();
+
+
+    DBG("About to load LSTM weights");
+    bool lstm_success = loadLSTMWeights();
+    DBG("LSTM loading result: " << (lstm_success ? "success" : "failure"));
 
     // load each weight matrix separately
     if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
         !loadPositionEmbeddings("model_weights/position_embedding.bin") ||
         !loadAttentionWeights() ||
         !loadAttentionBias() ||
-        !loadLSTMWeights()) {
+        !lstm_success) {
+        DBG("One of the weight loadings failed");
         return false;
     }
 
-    DBG("loadModel check"); // Add this
-
+    DBG("loadModel check");
     return test_attention();
 
 }
@@ -246,16 +265,18 @@ bool MelodicInference::loadLSTMWeights() {
         return false;
     }
 
+    DBG("files exist, attempting to open streams");
+
+    
     juce::FileInputStream ihStream(ihFile), hhStream(hhFile), biasStream(biasFile);
-    if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) return false;
+    if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) {
+        DBG("Failed to open one or more LSTM files");
+        return false;
+    }
+
+
 
     // Load dimensions
-    ihStream.readInt();
-    hhStream.readInt();
-    biasStream.readInt();
-
-
-
     ihStream.readInt();
     hhStream.readInt();
     biasStream.readInt();
@@ -291,10 +312,6 @@ bool MelodicInference::loadLSTMWeights() {
     hhStream.setPosition(12);
     biasStream.setPosition(12);
 
-    // allocate
-    //weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
-    //weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
-    //weights.lstm_bias.resize(4 * config.hidden_size);
 
     // Allocate without padding
     size_t ih_size = 4 * config.hidden_size * config.embedding_dim;
@@ -303,11 +320,6 @@ bool MelodicInference::loadLSTMWeights() {
     weights.lstm_ih.resize(ih_size);
     weights.lstm_hh.resize(hh_size);
     weights.lstm_bias.resize(bias_size);
-
-    //// Read data
-    //return ihStream.read(weights.lstm_ih.data(), weights.lstm_ih.size() * sizeof(float)) == weights.lstm_ih.size() * sizeof(float) &&
-    //    hhStream.read(weights.lstm_hh.data(), weights.lstm_hh.size() * sizeof(float)) == weights.lstm_hh.size() * sizeof(float) &&
-    //    biasStream.read(weights.lstm_bias.data(), weights.lstm_bias.size() * sizeof(float)) == weights.lstm_bias.size() * sizeof(float);
 
 
     // Direct read into vectors
