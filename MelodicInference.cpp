@@ -256,6 +256,8 @@ bool MelodicInference::loadAttentionBias() {
 
 
 bool MelodicInference::loadLSTMWeights() {
+    DBG("starting loadLSTMWeights");
+
     juce::File ihFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_ih.bin)");
     juce::File hhFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_hh.bin)");
     juce::File biasFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_bias.bin)");
@@ -266,15 +268,12 @@ bool MelodicInference::loadLSTMWeights() {
     }
 
     DBG("files exist, attempting to open streams");
-
     
     juce::FileInputStream ihStream(ihFile), hhStream(hhFile), biasStream(biasFile);
     if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) {
         DBG("Failed to open one or more LSTM files");
         return false;
     }
-
-
 
     // Load dimensions
     ihStream.readInt();
@@ -285,7 +284,7 @@ bool MelodicInference::loadLSTMWeights() {
     hhStream.setPosition(12);
     biasStream.setPosition(12);
 
-    // Debug reads for both files
+    // Debug reads for files
     std::vector<uint8_t> raw_bytes_ih(9);
     std::vector<uint8_t> raw_bytes_hh(9);
     std::vector<uint8_t> raw_bytes_bias(9);
@@ -294,38 +293,57 @@ bool MelodicInference::loadLSTMWeights() {
     biasStream.read(raw_bytes_bias.data(), 9);
 
     DBG("\nFirst 9 bytes read from ih file:");
-    for (int i = 0; i < 9; i++) {
-        DBG((int)raw_bytes_ih[i]);
-    }
+    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_ih[i]); }
 
     DBG("\nFirst 9 bytes read from hh file:");
-    for (int i = 0; i < 9; i++) {
-        DBG((int)raw_bytes_hh[i]);
-    }
+    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_hh[i]); }
 
     DBG("\nFirst 9 bytes read from bias file:");
-    for (int i = 0; i < 9; i++) {
-        DBG((int)raw_bytes_bias[i]);
-    }
+    for (int i = 0; i < 9; i++) { DBG((int)raw_bytes_bias[i]); }
 
-    ihStream.setPosition(12);  // Reset after debug read
+    // Reset after debug read
+    ihStream.setPosition(12);
     hhStream.setPosition(12);
     biasStream.setPosition(12);
 
+    try {
+        // Allocate without padding
+        size_t ih_size = 4 * config.hidden_size * config.embedding_dim;
+        size_t hh_size = 4 * config.hidden_size * config.hidden_size;
+        size_t bias_size = 4 * config.hidden_size;
 
-    // Allocate without padding
-    size_t ih_size = 4 * config.hidden_size * config.embedding_dim;
-    size_t hh_size = 4 * config.hidden_size * config.hidden_size;
-    size_t bias_size = 4 * config.hidden_size;
-    weights.lstm_ih.resize(ih_size);
-    weights.lstm_hh.resize(hh_size);
-    weights.lstm_bias.resize(bias_size);
+        DBG("Attempting to resize vectors");
+        DBG("ih_size: " << ih_size);
+        DBG("hh_size: " << hh_size);
+        DBG("bias_size: " << bias_size);
 
+        weights.lstm_ih.resize(ih_size);
+        weights.lstm_hh.resize(hh_size);
+        weights.lstm_bias.resize(bias_size);
 
-    // Direct read into vectors
-    return ihStream.read(weights.lstm_ih.data(), ih_size * sizeof(float)) == ih_size * sizeof(float) &&
-        hhStream.read(weights.lstm_hh.data(), hh_size * sizeof(float)) == hh_size * sizeof(float) &&
-        biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float)) == bias_size * sizeof(float);
+        DBG("reading lstm weights");
+
+        bool ih_read = ihStream.read(weights.lstm_ih.data(), ih_size * sizeof(float)) == ih_size * sizeof(float);
+        bool hh_read = hhStream.read(weights.lstm_hh.data(), hh_size * sizeof(float)) == hh_size * sizeof(float);
+//        bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float)) == bias_size * sizeof(float);
+//        bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * 2 * sizeof(float)) == bias_size * 2 * sizeof(float);
+        bool bias_read = biasStream.read(weights.lstm_bias.data(), bias_size * sizeof(float));
+
+        if (!ih_read || !hh_read || !bias_read) {
+            DBG("Failed to read complete LSTM weights");
+            DBG(juce::String("ih_read: ") + (ih_read ? "true" : "false"));
+            DBG(juce::String("hh_read: ") + (hh_read ? "true" : "false"));
+            DBG(juce::String("bias_read: ") + (bias_read ? "true" : "false"));
+            return false;
+        }
+
+        DBG("Successfully loaded LSTM weights");
+        return true;
+    }
+    catch (const std::exception& e) {
+        DBG("Exception in loadLSTMWeights: " << e.what());
+        return false;
+    }
 
 }
 
