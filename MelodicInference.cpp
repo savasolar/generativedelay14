@@ -275,7 +275,6 @@ bool MelodicInference::loadLSTMWeights() {
 
 
 
-    //// Allocate
     //weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
     //weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
     //weights.lstm_bias.resize(4 * config.hidden_size);
