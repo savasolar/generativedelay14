@@ -23,6 +23,8 @@ bool MelodicInference::loadModel() {
         return false;
     }
 
+    DBG("loadModel check"); // Add this
+
     return test_attention();
 
 }
@@ -239,6 +241,11 @@ bool MelodicInference::loadLSTMWeights() {
     juce::File hhFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_hh.bin)");
     juce::File biasFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_bias.bin)");
 
+    if (!ihFile.existsAsFile() || !hhFile.existsAsFile() || !biasFile.existsAsFile()) {
+        DBG("LSTM files not found");
+        return false;
+    }
+
     juce::FileInputStream ihStream(ihFile), hhStream(hhFile), biasStream(biasFile);
     if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) return false;
 
@@ -260,8 +267,10 @@ bool MelodicInference::loadLSTMWeights() {
     // Debug reads for both files
     std::vector<uint8_t> raw_bytes_ih(9);
     std::vector<uint8_t> raw_bytes_hh(9);
+    std::vector<uint8_t> raw_bytes_bias(9);
     ihStream.read(raw_bytes_ih.data(), 9);
     hhStream.read(raw_bytes_hh.data(), 9);
+    biasStream.read(raw_bytes_bias.data(), 9);
 
     DBG("\nFirst 9 bytes read from ih file:");
     for (int i = 0; i < 9; i++) {
@@ -273,8 +282,16 @@ bool MelodicInference::loadLSTMWeights() {
         DBG((int)raw_bytes_hh[i]);
     }
 
+    DBG("\nFirst 9 bytes read from bias file:");
+    for (int i = 0; i < 9; i++) {
+        DBG((int)raw_bytes_bias[i]);
+    }
 
+    ihStream.setPosition(12);  // Reset after debug read
+    hhStream.setPosition(12);
+    biasStream.setPosition(12);
 
+    // allocate
     //weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
     //weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
     //weights.lstm_bias.resize(4 * config.hidden_size);
@@ -428,6 +445,7 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
     
+    DBG("Entering processLSTM");
 
     int seq_len = attention_output.rows();
 
@@ -470,6 +488,17 @@ Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_o
     );
 
 
+
+
+    DBG("\nFirst 5 values after mapping:");
+    DBG("weight_ih_l0:");
+    for (int i = 0; i < 5; i++) {
+        DBG(weight_ih_forward(0, i));
+    }
+    DBG("\nbias_ih_l0:");
+    for (int i = 0; i < 5; i++) {
+        DBG(bias_forward(i));
+    }
 
     // debug prints:
     DBG("\nC++ LSTM debug:");
