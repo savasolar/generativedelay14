@@ -22,7 +22,8 @@ bool MelodicInference::loadModel() {
     if (!loadTokenEmbeddings("model_weights/token_embedding.bin") ||
         !loadPositionEmbeddings("model_weights/position_embedding.bin") ||
         !loadAttentionWeights() ||
-        !loadAttentionBias()) {
+        !loadAttentionBias() ||
+        !loadLSTMWeights()) {
         return false;
     }
 
@@ -237,6 +238,30 @@ bool MelodicInference::loadAttentionBias() {
 
     return success;
 
+}
+
+
+
+bool MelodicInference::loadLSTMWeights() {
+    juce::File ihFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_ih.bin)");
+    juce::File hhFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_hh.bin)");
+    juce::File biasFile(R"(C:\Users\savas\Documents\JUCE Projects\generativedelay14\Model\model_weights\lstm_bias.bin)");
+
+    juce::FileInputStream ihStream(ihFile), hhStream(hhFile), biasStream(biasFile);
+    if (!ihStream.openedOk() || !hhStream.openedOk() || !biasStream.openedOk()) return false;
+
+    // Load dimensions
+    ihStream.readInt(); hhStream.readInt(); biasStream.readInt();
+
+    // Allocate
+    weights.lstm_ih.resize(4 * config.hidden_size * config.embedding_dim);
+    weights.lstm_hh.resize(4 * config.hidden_size * config.hidden_size);
+    weights.lstm_bias.resize(4 * config.hidden_size);
+
+    // Read data
+    return ihStream.read(weights.lstm_ih.data(), weights.lstm_ih.size() * sizeof(float)) == weights.lstm_ih.size() * sizeof(float) &&
+        hhStream.read(weights.lstm_hh.data(), weights.lstm_hh.size() * sizeof(float)) == weights.lstm_hh.size() * sizeof(float) &&
+        biasStream.read(weights.lstm_bias.data(), weights.lstm_bias.size() * sizeof(float)) == weights.lstm_bias.size() * sizeof(float);
 }
 
 

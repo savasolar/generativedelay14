@@ -42,6 +42,8 @@ private:
     bool loadAttentionWeights();
     bool loadAttentionBias();
 
+    bool loadLSTMWeights();
+
 
     Eigen::MatrixXf getTokenEmbeddings(const std::vector<int>& input_tokens);
     Eigen::MatrixXf addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings);
