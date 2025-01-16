@@ -338,6 +338,19 @@ bool MelodicInference::loadLSTMWeights() {
         }
 
         DBG("Successfully loaded LSTM weights");
+
+
+        // Add after loading weights in loadLSTMWeights():
+        juce::String ih_debug, hh_debug;
+        for (int i = 0; i < 5; i++) {
+            ih_debug += juce::String(weights.lstm_ih[i]) + " ";
+            hh_debug += juce::String(weights.lstm_hh[i]) + " ";
+        }
+        DBG("First 5 values after loading:");
+        DBG("weight_ih: " + ih_debug);
+        DBG("weight_hh: " + hh_debug);
+
+
         return true;
     }
     catch (const std::exception& e) {
@@ -345,6 +358,7 @@ bool MelodicInference::loadLSTMWeights() {
         return false;
     }
 
+    
 }
 
 
@@ -474,8 +488,121 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 
 
 Eigen::MatrixXf MelodicInference::processLSTM(const Eigen::MatrixXf& attention_output) {
-    
 
+    // SECTION 1: BASIC ATTENTION OUTPUT VERIFICATION
+    DBG("\nAttention Output Verification:");
+    DBG("Shape: " + juce::String(attention_output.rows()) + " x " + juce::String(attention_output.cols()));
+    DBG("Input verification first 5 values:");
+    for (int i = 0; i < 5; i++) {
+        DBG("index " + juce::String(i) + ": " + juce::String(attention_output(0, i)));
+    }
+
+    int seq_len = attention_output.rows();
+
+    // SECTION 2: WEIGHT MATRIX VERIFICATION
+    DBG("\nWeight Matrix Verification:");
+    // First 5 values of each gate section in W_ih
+    for (int gate = 0; gate < 4; gate++) {
+        DBG("\nW_ih Gate " + juce::String(gate) + " first 5 values:");
+        for (int i = 0; i < 5; i++) {
+            size_t idx = gate * config.hidden_size * config.embedding_dim + i;
+            DBG("index " + juce::String(i) + ": " + juce::String(weights.lstm_ih[idx]));
+        }
+    }
+
+    // SECTION 3: BIAS VERIFICATION
+    DBG("\nBias Verification:");
+    for (int gate = 0; gate < 4; gate++) {
+        DBG("\nBias Gate " + juce::String(gate) + " first 5 values:");
+        for (int i = 0; i < 5; i++) {
+            size_t idx = gate * config.hidden_size + i;
+            DBG("index " + juce::String(i) + ": " + juce::String(weights.lstm_bias[idx]));
+        }
+    }
+
+    // Initialize states
+    Eigen::VectorXf h_fw = Eigen::VectorXf::Zero(config.hidden_size);
+    Eigen::VectorXf c_fw = Eigen::VectorXf::Zero(config.hidden_size);
+    Eigen::VectorXf h_bw = Eigen::VectorXf::Zero(config.hidden_size);
+    Eigen::VectorXf c_bw = Eigen::VectorXf::Zero(config.hidden_size);
+
+    Eigen::MatrixXf outputs = Eigen::MatrixXf::Zero(seq_len, config.hidden_size * 2);
+
+    // Map weights
+    Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        W_ih(weights.lstm_ih.data(), 4 * config.hidden_size, config.embedding_dim);
+
+    Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        W_hh(weights.lstm_hh.data(), 4 * config.hidden_size, config.hidden_size);
+
+    Eigen::Map<const Eigen::VectorXf> bias(weights.lstm_bias.data(), 4 * config.hidden_size);
+
+    // SECTION 4: SINGLE GATE COMPUTATION VERIFICATION
+    DBG("\nSingle Gate Computation Verification:");
+    Eigen::VectorXf x_t_verify = attention_output.row(0);
+
+    size_t gate_size = config.hidden_size * config.embedding_dim;
+    Eigen::Map<const Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+        W_ih_i(weights.lstm_ih.data(), config.hidden_size, config.embedding_dim);
+
+    DBG("\nInput gate weight matrix verification:");
+    DBG("W_ih_i dimensions: " + juce::String(W_ih_i.rows()) + " x " + juce::String(W_ih_i.cols()));
+    DBG("W_ih_i strides: " + juce::String(W_ih_i.rowStride()) + ", " + juce::String(W_ih_i.colStride()));
+
+    Eigen::VectorXf gate_result = W_ih_i * x_t_verify;
+    DBG("\nInput gate computation first 5 values (before bias):");
+    for (int i = 0; i < 5; i++) {
+        DBG("index " + juce::String(i) + ": " + juce::String(gate_result[i]));
+    }
+
+    // Forward pass
+    for (int t = 0; t < seq_len; t++) {
+        // Get current input
+        Eigen::VectorXf x_t = attention_output.row(t);
+
+        // Compute gates
+        Eigen::VectorXf gates = W_ih * x_t + W_hh * h_fw + bias;
+
+        // Split gates
+        auto i_g = gates.segment(0 * config.hidden_size, config.hidden_size);
+        auto f_g = gates.segment(1 * config.hidden_size, config.hidden_size);
+        auto g_g = gates.segment(2 * config.hidden_size, config.hidden_size);
+        auto o_g = gates.segment(3 * config.hidden_size, config.hidden_size);
+
+        // Apply activations
+        Eigen::VectorXf i_t = i_g.unaryExpr([](float x) { return sigmoid(x); });
+        Eigen::VectorXf f_t = f_g.unaryExpr([](float x) { return sigmoid(x); });
+        Eigen::VectorXf g_t = g_g.array().tanh();
+        Eigen::VectorXf o_t = o_g.unaryExpr([](float x) { return sigmoid(x); });
+
+        c_fw = (f_t.array() * c_fw.array() + i_t.array() * g_t.array()).matrix();
+        h_fw = (o_t.array() * c_fw.array().tanh()).matrix();
+
+        outputs.row(t).head(config.hidden_size) = h_fw;
+    }
+
+    // Backward pass
+    for (int t = seq_len - 1; t >= 0; t--) {
+        Eigen::VectorXf x_t = attention_output.row(t);
+        Eigen::VectorXf gates = W_ih * x_t + W_hh * h_bw + bias;
+
+        auto i_g = gates.segment(0 * config.hidden_size, config.hidden_size);
+        auto f_g = gates.segment(1 * config.hidden_size, config.hidden_size);
+        auto g_g = gates.segment(2 * config.hidden_size, config.hidden_size);
+        auto o_g = gates.segment(3 * config.hidden_size, config.hidden_size);
+
+        Eigen::VectorXf i_t = i_g.unaryExpr([](float x) { return sigmoid(x); });
+        Eigen::VectorXf f_t = f_g.unaryExpr([](float x) { return sigmoid(x); });
+        Eigen::VectorXf g_t = g_g.array().tanh();
+        Eigen::VectorXf o_t = o_g.unaryExpr([](float x) { return sigmoid(x); });
+
+        c_bw = (f_t.array() * c_bw.array() + i_t.array() * g_t.array()).matrix();
+        h_bw = (o_t.array() * c_bw.array().tanh()).matrix();
+
+        outputs.row(t).tail(config.hidden_size) = h_bw;
+    }
+
+    return outputs;
 
 }
 
