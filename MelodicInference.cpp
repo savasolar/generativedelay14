@@ -474,9 +474,6 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
 
 
 
-
-
-
     // Apply softmax row-wise
     Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
     for (int i = 0; i < seq_len; i++) {
