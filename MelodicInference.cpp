@@ -410,6 +410,13 @@ Eigen::MatrixXf MelodicInference::addPositionEmbeddings(const Eigen::MatrixXf& t
 
 Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embeddings) {
 
+    DBG("\n=== ATTENTION COMPUTATION DEBUG ===");
+    DBG("1. Input to attention (first 5):");
+    for (int i = 0; i < 5; i++) {
+        DBG(juce::String(embeddings(0, i)));
+    }
+
+
     // Map weights to Eigen matrices with correct layout
     Eigen::Map<const Eigen::MatrixXf> q_weight_mat(weights.attention_qkv.data(),
         config.embedding_dim, config.embedding_dim);
@@ -427,9 +434,20 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         config.embedding_dim).replicate(1, embeddings.rows()).transpose();
 
 
-    // add debug prints
-//    DBG("\nQ first 5 values:");
-//    for (int i = 0; i < 5; i++) DBG(Q(0, i));
+    DBG("\n2. After QKV projections (first 5):");
+    DBG("Q: ");
+    for (int i = 0; i < 5; i++) {
+        DBG(juce::String(Q(0, i)));
+    }
+    DBG("K: ");
+    for (int i = 0; i < 5; i++) {
+        DBG(juce::String(K(0, i)));
+    }
+    DBG("V: ");
+    for (int i = 0; i < 5; i++) {
+        DBG(juce::String(V(0, i)));
+    }
+
 
 
 
@@ -455,10 +473,6 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
 
 
-//    DBG("\nScores after masking (first row):");
-//    for (int i = 0; i < 5; i++) DBG(scores(0, i));
-
-
 
 
 
@@ -475,8 +489,15 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     // Final multiplication with V
     Eigen::MatrixXf output = attention_weights * V;
 
-//    DBG("\nAttention output (first row):");
-//    for (int i = 0; i < 5; i++) DBG(output(0, i));
+
+    
+
+    DBG("\n3. Final attention output (first 5):");
+    for (int i = 0; i < 5; i++) {
+        DBG(juce::String(output(0, i)));
+    }
+
+
 
     return output;
 
