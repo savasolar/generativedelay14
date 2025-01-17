@@ -459,6 +459,15 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     // Compute attention scores exactly like PyTorch: scores = q @ k.transpose(-2, -1)
     Eigen::MatrixXf scores = Q * K.transpose();
 
+    DBG("\nScores before masking (first 5x5):");
+    for (int i = 0; i < 5; i++) {
+        juce::String row;
+        for (int j = 0; j < 5; j++) {
+            row += juce::String(scores(i, j)) + " ";
+        }
+        DBG(row);
+    }
+
     // Create mask exactly like PyTorch's _create_local_attention_mask
     int seq_len = embeddings.rows();
     int window_size = 8;
@@ -478,6 +487,15 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         }
     }
 
+    DBG("\nScores after masking (first 5x5):");
+    for (int i = 0; i < 5; i++) {
+        juce::String row;
+        for (int j = 0; j < 5; j++) {
+            row += juce::String(scores(i, j)) + " ";
+        }
+        DBG(row);
+    }
+
     // Compute row-wise softmax exactly like F.softmax(dim=-1)
     Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
     for (int i = 0; i < seq_len; i++) {
@@ -486,8 +504,23 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         attention_weights.row(i) = exp_scores / exp_scores.sum();
     }
 
-    // Final multiplication exactly like attn_weights @ v
-    Eigen::MatrixXf output = attention_weights * V;
+    DBG("\nAttention weights after softmax (first 5x5):");
+    for (int i = 0; i < 5; i++) {
+        juce::String row;
+        for (int j = 0; j < 5; j++) {
+            row += juce::String(attention_weights(i, j)) + " ";
+        }
+        DBG(row);
+    }
+
+    //// Final multiplication exactly like attn_weights @ v
+    //Eigen::MatrixXf output = attention_weights * V;
+
+    // Compute batch matrix multiplication properly
+    Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
+    for (int i = 0; i < seq_len; i++) {
+        output.row(i) = attention_weights.row(i) * V;
+    }
 
 
     DBG("\n3. Final attention output (first 5):");
