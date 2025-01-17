@@ -529,36 +529,167 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     DBG("V dimensions: " << V.rows() << " x " << V.cols());
 
 
-    // Final multiplication exactly like attn_weights @ v
-    //Eigen::MatrixXf output = attention_weights * V;
+    DBG("\nDetailed attention debug:");
+    DBG("1. Full V matrix first two rows (all 32 dimensions):");
+    for (int i = 0; i < 2; i++) {
+        juce::String row;
+        for (int j = 0; j < V.cols(); j++) {
+            row += juce::String(V(i, j)) + " ";
+        }
+        DBG("Row " + juce::String(i) + ": " + row);
+    }
 
-    //// Compute batch matrix multiplication properly
-    //Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
+    DBG("\n2. Attention weights first two rows (all values):");
+    for (int i = 0; i < 2; i++) {
+        juce::String row;
+        for (int j = 0; j < attention_weights.cols(); j++) {
+            row += juce::String(attention_weights(i, j)) + " ";
+        }
+        DBG("Row " + juce::String(i) + ": " + row);
+    }
+
+    DBG("\n3. Step by step multiplication for first output:");
+    Eigen::VectorXf running_sum = Eigen::VectorXf::Zero(V.cols());
+    for (int j = 0; j < attention_weights.cols(); j++) {
+        float weight = attention_weights(0, j);
+        Eigen::VectorXf v_values = V.row(j);
+        Eigen::VectorXf contribution = weight * v_values;
+        running_sum += contribution;
+
+        DBG("Position " + juce::String(j) + ":");
+        DBG("Weight: " + juce::String(weight));
+        juce::String v_str = "V values (first 5): ";
+        for (int k = 0; k < 5; k++) {
+            v_str += juce::String(v_values[k]) + " ";
+        }
+        DBG(v_str);
+
+        juce::String contrib_str = "Contribution (first 5): ";
+        for (int k = 0; k < 5; k++) {
+            contrib_str += juce::String(contribution[k]) + " ";
+        }
+        DBG(contrib_str);
+
+        juce::String sum_str = "Running sum (first 5): ";
+        for (int k = 0; k < 5; k++) {
+            sum_str += juce::String(running_sum[k]) + " ";
+        }
+        DBG(sum_str + "\n");
+    }
+
+
+
+
+    // Final multiplication exactly like attn_weights @ v
+
+    Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
+    //for (int t = 0; t < seq_len; t++) {
+    //    output.row(t) = Eigen::VectorXf::Zero(embeddings.cols());
+    //    for (int s = 0; s < seq_len; s++) {
+    //        output.row(t) += attention_weights(t, s) * V.row(s);
+    //    }
+    //}
+
+    //// Initialize output matrix with correct dimensions
+    //Eigen::MatrixXf output(seq_len, V.cols());
+
+    //// Perform batch matrix multiplication
     //for (int i = 0; i < seq_len; i++) {
-    //    output.row(i) = attention_weights.row(i) * V;
+    //    output.row(i).setZero();
+    //    for (int j = 0; j < attention_weights.cols(); j++) {
+    //        output.row(i) += attention_weights(i, j) * V.row(j);
+    //    }
+    //}
+
+    //// Initialize output matrix with correct dimensions 
+    //int batch_size = 1; // We have 1 batch
+    //Eigen::MatrixXf output(seq_len, V.cols());
+
+    //// Reshape matrices to handle batch dimension
+    //for (int b = 0; b < batch_size; b++) {
+    //    for (int i = 0; i < seq_len; i++) {
+    //        output.row(i).setZero();
+    //        for (int j = 0; j < attention_weights.cols(); j++) {
+    //            // Include batch dimension in indexing
+    //            output.row(i) += attention_weights(b * seq_len + i, j) * V.row(j);
+    //        }
+    //    }
     //}
 
 
-    
+    /////////////////////////////////////////////////////////////////
 
-    /*Eigen::MatrixXf output(attention_weights.rows(), V.cols());
-    for (int i = 0; i < attention_weights.rows(); i++) {
-        for (int j = 0; j < V.cols(); j++) {
-            float sum = 0.0f;
-            for (int k = 0; k < attention_weights.cols(); k++) {
-                sum += attention_weights(i, k) * V(k, j);
-            }
-            output(i, j) = sum;
-        }
-    }*/
 
-    Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
-    for (int t = 0; t < seq_len; t++) {
-        output.row(t) = Eigen::VectorXf::Zero(embeddings.cols());
-        for (int s = 0; s < seq_len; s++) {
-            output.row(t) += attention_weights(t, s) * V.row(s);
-        }
-    }
+    //// Initialize output matrix with correct dimensions
+    //int batch_size = 1; // From PyTorch shape [1, 2, 32]
+    //Eigen::MatrixXf output(seq_len, V.cols());
+
+    //// Debug first attention weight row and V values
+    //juce::String first_attn_row;
+    //for (int j = 0; j < attention_weights.cols(); j++) {
+    //    first_attn_row += juce::String(attention_weights(0, j)) + " ";
+    //}
+    //DBG("First attention row: " + first_attn_row);
+
+    //DBG("First V rows: ");
+    //juce::String v_row0, v_row1;
+    //for (int j = 0; j < V.cols(); j++) {
+    //    v_row0 += juce::String(V(0, j)) + " ";
+    //    v_row1 += juce::String(V(1, j)) + " ";
+    //}
+    //DBG("V[0]: " + v_row0);
+    //DBG("V[1]: " + v_row1);
+
+    //// For each batch (in our case just 1)
+    //for (int b = 0; b < batch_size; b++) {
+    //    // For each query position
+    //    for (int i = 0; i < seq_len; i++) {
+    //        output.row(i).setZero();
+    //        // For each key position
+    //        for (int j = 0; j < attention_weights.cols(); j++) {
+    //            if (attention_weights(i, j) != 0) {  // Skip zero weights for efficiency
+    //                // Add the weighted value to the output
+    //                output.row(i).noalias() += attention_weights(i, j) * V.row(j);
+
+    //                // Debug output for first row
+    //                if (i == 0) {
+    //                    DBG("Position " + juce::String(j) + " contribution:");
+    //                    DBG("Weight: " + juce::String(attention_weights(i, j)));
+
+    //                    juce::String v_row;
+    //                    for (int k = 0; k < V.cols(); k++) {
+    //                        v_row += juce::String(V(j, k)) + " ";
+    //                    }
+    //                    DBG("V row: " + v_row);
+
+    //                    juce::String contrib;
+    //                    Eigen::VectorXf contribution = attention_weights(i, j) * V.row(j);
+    //                    for (int k = 0; k < contribution.size(); k++) {
+    //                        contrib += juce::String(contribution(k)) + " ";
+    //                    }
+    //                    DBG("Contribution: " + contrib);
+
+    //                    juce::String current;
+    //                    for (int k = 0; k < output.cols(); k++) {
+    //                        current += juce::String(output(i, k)) + " ";
+    //                    }
+    //                    DBG("Current sum: " + current);
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
+
+
+
+
+    output = attention_weights * V;
+
+
+
+    /////////////////////////////////////////////////////////////////
+
+
 
 
     DBG("Detailed multiplication debug:");
@@ -765,9 +896,15 @@ bool MelodicInference::test_attention() {
     auto combined = addPositionEmbeddings(token_emb);
     test_input.topRows(combined.rows()) = combined;
 
+
+    // fuck this im switching to rtneural
+
+
     auto attn_output = computeAttention(test_input);
     auto lstm_output = processLSTM(attn_output);
 
     return true;
 
 }
+
+
