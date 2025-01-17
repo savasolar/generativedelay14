@@ -455,43 +455,11 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     float scale = 1.0f / std::sqrt(config.embedding_dim);
     Q *= scale;
 
-    //// Compute attention scores
-    //Eigen::MatrixXf scores = Q * K.transpose();
 
-    //
-
-    //// Create attention mask
-    //int seq_len = embeddings.rows();
-    //int window_size = 8;
-
-    //Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
-    //for (int i = 0; i < seq_len; i++) {
-    //    int start = std::max(0, i - window_size);
-    //    int end = std::min(seq_len, i + 1);
-    //    mask.block(i, start, 1, end - start).setZero();
-    //}
-    //scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
-
-
-
-    //// Apply softmax row-wise
-    //Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
-    //for (int i = 0; i < seq_len; i++) {
-    //    // Get max for numerical stability
-    //    float max_val = scores.row(i).maxCoeff();
-    //    Eigen::VectorXf exp_scores = (scores.row(i).array() - max_val).exp();
-    //    attention_weights.row(i) = exp_scores / exp_scores.sum();
-    //}
-
-    //// Final multiplication with V
-    //Eigen::MatrixXf output = attention_weights * V;
-
-
-
-    // Compute attention scores as matrix multiplication: (batch_size, seq_len, seq_len)
+    // Compute attention scores exactly like PyTorch: scores = q @ k.transpose(-2, -1)
     Eigen::MatrixXf scores = Q * K.transpose();
 
-    // Create and apply the attention mask
+    // Create mask exactly like PyTorch's _create_local_attention_mask
     int seq_len = embeddings.rows();
     int window_size = 8;
     Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
@@ -501,42 +469,33 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         mask.block(i, start, 1, end - start).setZero();
     }
 
-    // Apply mask and compute softmax for each row
-    Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
+    // Mask fill with -inf exactly like PyTorch's masked_fill_
     for (int i = 0; i < seq_len; i++) {
-        // Get the scores for this row
-        Eigen::VectorXf row = scores.row(i);
-
-        // Apply mask (-inf where mask is 1)
         for (int j = 0; j < seq_len; j++) {
-            if (mask(i, j) > 0.5f) {  // if mask is 1
-                row(j) = -std::numeric_limits<float>::infinity();
+            if (mask(i, j) > 0.5f) {
+                scores(i, j) = -std::numeric_limits<float>::infinity();
             }
         }
+    }
 
-        // Compute softmax
-        float max_val = row.maxCoeff();
-        Eigen::VectorXf exp_scores = (row.array() - max_val).exp();
+    // Compute row-wise softmax exactly like F.softmax(dim=-1)
+    Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
+    for (int i = 0; i < seq_len; i++) {
+        float max_val = scores.row(i).maxCoeff();
+        Eigen::VectorXf exp_scores = (scores.row(i).array() - max_val).exp();
         attention_weights.row(i) = exp_scores / exp_scores.sum();
     }
 
-    // Final attention output
+    // Final multiplication exactly like attn_weights @ v
     Eigen::MatrixXf output = attention_weights * V;
 
-
-    
 
     DBG("\n3. Final attention output (first 5):");
     for (int i = 0; i < 5; i++) {
         DBG(juce::String(output(0, i)));
     }
 
-
-
     return output;
-
-
-
 
 }
 
