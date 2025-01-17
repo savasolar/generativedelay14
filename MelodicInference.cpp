@@ -455,35 +455,72 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
     float scale = 1.0f / std::sqrt(config.embedding_dim);
     Q *= scale;
 
-    // Compute attention scores
+    //// Compute attention scores
+    //Eigen::MatrixXf scores = Q * K.transpose();
+
+    //
+
+    //// Create attention mask
+    //int seq_len = embeddings.rows();
+    //int window_size = 8;
+
+    //Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
+    //for (int i = 0; i < seq_len; i++) {
+    //    int start = std::max(0, i - window_size);
+    //    int end = std::min(seq_len, i + 1);
+    //    mask.block(i, start, 1, end - start).setZero();
+    //}
+    //scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
+
+
+
+    //// Apply softmax row-wise
+    //Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
+    //for (int i = 0; i < seq_len; i++) {
+    //    // Get max for numerical stability
+    //    float max_val = scores.row(i).maxCoeff();
+    //    Eigen::VectorXf exp_scores = (scores.row(i).array() - max_val).exp();
+    //    attention_weights.row(i) = exp_scores / exp_scores.sum();
+    //}
+
+    //// Final multiplication with V
+    //Eigen::MatrixXf output = attention_weights * V;
+
+
+
+    // Compute attention scores as matrix multiplication: (batch_size, seq_len, seq_len)
     Eigen::MatrixXf scores = Q * K.transpose();
 
-    
-
-    // Create attention mask
+    // Create and apply the attention mask
     int seq_len = embeddings.rows();
     int window_size = 8;
-
     Eigen::MatrixXf mask = Eigen::MatrixXf::Ones(seq_len, seq_len);
     for (int i = 0; i < seq_len; i++) {
         int start = std::max(0, i - window_size);
         int end = std::min(seq_len, i + 1);
         mask.block(i, start, 1, end - start).setZero();
     }
-    scores = (mask.array() == 1).select(-std::numeric_limits<float>::infinity(), scores);
 
-
-
-    // Apply softmax row-wise
+    // Apply mask and compute softmax for each row
     Eigen::MatrixXf attention_weights = Eigen::MatrixXf::Zero(seq_len, seq_len);
     for (int i = 0; i < seq_len; i++) {
-        // Get max for numerical stability
-        float max_val = scores.row(i).maxCoeff();
-        Eigen::VectorXf exp_scores = (scores.row(i).array() - max_val).exp();
+        // Get the scores for this row
+        Eigen::VectorXf row = scores.row(i);
+
+        // Apply mask (-inf where mask is 1)
+        for (int j = 0; j < seq_len; j++) {
+            if (mask(i, j) > 0.5f) {  // if mask is 1
+                row(j) = -std::numeric_limits<float>::infinity();
+            }
+        }
+
+        // Compute softmax
+        float max_val = row.maxCoeff();
+        Eigen::VectorXf exp_scores = (row.array() - max_val).exp();
         attention_weights.row(i) = exp_scores / exp_scores.sum();
     }
 
-    // Final multiplication with V
+    // Final attention output
     Eigen::MatrixXf output = attention_weights * V;
 
 
