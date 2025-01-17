@@ -416,6 +416,7 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         DBG(juce::String(embeddings(0, i)));
     }
 
+    
 
     // Map weights to Eigen matrices with correct layout
     Eigen::Map<const Eigen::MatrixXf> q_weight_mat(weights.attention_qkv.data(),
@@ -424,6 +425,14 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         config.embedding_dim, config.embedding_dim);
     Eigen::Map<const Eigen::MatrixXf> v_weight_mat(weights.attention_qkv.data() + 2 * config.embedding_dim * config.embedding_dim,
         config.embedding_dim, config.embedding_dim);
+
+
+    DBG("Q, K, V weight matrices dimensions:");
+    DBG("q_weight_mat: " << q_weight_mat.rows() << " x " << q_weight_mat.cols());
+    DBG("k_weight_mat: " << k_weight_mat.rows() << " x " << k_weight_mat.cols());
+    DBG("v_weight_mat: " << v_weight_mat.rows() << " x " << v_weight_mat.cols());
+
+
 
     // Linear projections matching PyTorch F.linear
     Eigen::MatrixXf Q = embeddings * q_weight_mat + Eigen::Map<const Eigen::VectorXf>(weights.attention_bias.data(),
@@ -513,13 +522,61 @@ Eigen::MatrixXf MelodicInference::computeAttention(const Eigen::MatrixXf& embedd
         DBG(row);
     }
 
-    //// Final multiplication exactly like attn_weights @ v
+
+    DBG("\nBefore final multiplication:");
+    DBG("seq_len: " << seq_len);
+    DBG("attention_weights dimensions: " << attention_weights.rows() << " x " << attention_weights.cols());
+    DBG("V dimensions: " << V.rows() << " x " << V.cols());
+
+
+    // Final multiplication exactly like attn_weights @ v
     //Eigen::MatrixXf output = attention_weights * V;
 
-    // Compute batch matrix multiplication properly
+    //// Compute batch matrix multiplication properly
+    //Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
+    //for (int i = 0; i < seq_len; i++) {
+    //    output.row(i) = attention_weights.row(i) * V;
+    //}
+
+
+    
+
+    /*Eigen::MatrixXf output(attention_weights.rows(), V.cols());
+    for (int i = 0; i < attention_weights.rows(); i++) {
+        for (int j = 0; j < V.cols(); j++) {
+            float sum = 0.0f;
+            for (int k = 0; k < attention_weights.cols(); k++) {
+                sum += attention_weights(i, k) * V(k, j);
+            }
+            output(i, j) = sum;
+        }
+    }*/
+
     Eigen::MatrixXf output(embeddings.rows(), embeddings.cols());
-    for (int i = 0; i < seq_len; i++) {
-        output.row(i) = attention_weights.row(i) * V;
+    for (int t = 0; t < seq_len; t++) {
+        output.row(t) = Eigen::VectorXf::Zero(embeddings.cols());
+        for (int s = 0; s < seq_len; s++) {
+            output.row(t) += attention_weights(t, s) * V.row(s);
+        }
+    }
+
+
+    DBG("Detailed multiplication debug:");
+    for (int i = 0; i < 5; i++) {
+        DBG("Row " << i << " attention weights:");
+        for (int j = 0; j < 5; j++) {
+            DBG(attention_weights(i, j));
+        }
+
+        DBG("Resulting row values:");
+        for (int j = 0; j < 5; j++) {
+            DBG(output(i, j));
+        }
+
+        DBG("V row values:");
+        for (int j = 0; j < 5; j++) {
+            DBG(V.row(i)(j));
+        }
     }
 
 
