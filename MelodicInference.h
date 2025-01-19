@@ -3,6 +3,9 @@
 #include <vector>
 #include <string>
 
+#include <torch/script.h>
+#include <unordered_map>
+
 //#include <RTNeural/RTNeural.h>
 //#include <memory>
 
@@ -18,10 +21,7 @@ public:
 
 private:
 
-//    std::unique_ptr<RTNeural::Model<float>> model;
-
-
-
+    torch::jit::script::Module model;
 
 
     bool simple_test();
