@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "CustomKnob.h"
-#include "ImageButton.h"
+#include "CustomImageButton.h"
 #include "PianoRoll.h"
 
 static const juce::Font getCustomFont()
@@ -63,8 +63,8 @@ private:
 
     juce::Label infoLabel;
 
-    ImageButton browseButton{ BinaryData::browse_png, BinaryData::browse_pngSize };
-    ImageButton openButton{ BinaryData::open_png, BinaryData::open_pngSize };
+    CustomImageButton browseButton{ BinaryData::browse_png, BinaryData::browse_pngSize };
+    CustomImageButton openButton{ BinaryData::open_png, BinaryData::open_pngSize };
 
     std::unique_ptr<PianoRoll> pianoRoll;
 

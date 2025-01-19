@@ -1,11 +1,11 @@
-// ImageButton.h
+// CustomImageButton.h
 #pragma once
 #include <JuceHeader.h>
 
-class ImageButton : public juce::Component
+class CustomImageButton : public juce::Component
 {
 public:
-    ImageButton(const char* imageData, size_t imageSize)
+    CustomImageButton(const char* imageData, size_t imageSize)
     {
         image = juce::ImageCache::getFromMemory(imageData, imageSize);
     }

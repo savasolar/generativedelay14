@@ -2,8 +2,10 @@
 #include <JuceHeader.h>
 #include <vector>
 #include <string>
-#include <unordered_map>
-#include <Eigen/Dense>
+//#include <unordered_map>
+//#include <Eigen/Dense>
+#include <RTNeural/RTNeural.h>
+#include <memory>
 
 class MelodicInference {
 public:
@@ -16,56 +18,24 @@ public:
         int topK = 200);
 
 private:
-    struct ModelConfig {
-        int vocab_size;
-        int embedding_dim;
-        int hidden_size;
-    };
 
-    struct ModelWeights {
-        std::vector<float> token_embedding;
-        std::vector<float> position_embedding;
-        std::vector<float> attention_qkv;
-        std::vector<float> attention_bias;
-        std::vector<float> lstm_ih;
-        std::vector<float> lstm_hh;
-        std::vector<float> lstm_bias;
-        std::vector<float> output;
-        std::vector<float> output_bias;
-    };
+    std::unique_ptr<RTNeural::Model<float>> model;
+    std::unordered_map<std::string, int> stoi;
+    std::unordered_map<int, std::string> itos;
 
 
-    bool loadConfig(const std::string& filename);
-    bool loadTokenEmbeddings(const std::string& filename);
-    bool loadPositionEmbeddings(const std::string& filename);
-
-    bool loadAttentionWeights();
-    bool loadAttentionBias();
-
-    bool loadLSTMWeights();
-
-
-    Eigen::MatrixXf getTokenEmbeddings(const std::vector<int>& input_tokens);
-    Eigen::MatrixXf addPositionEmbeddings(const Eigen::MatrixXf& token_embeddings);
-    Eigen::MatrixXf computeAttention(const Eigen::MatrixXf& embeddings);
-    Eigen::MatrixXf processLSTM(const Eigen::MatrixXf& attention_output);
-    Eigen::VectorXf computeLogits(const Eigen::MatrixXf& lstm_output);
-    Eigen::VectorXf forward(const std::vector<int>& tokens);
-
-
-    
+    std::vector<float> preprocess(const std::vector<std::string>& tokens);
+    std::vector<std::string> postprocess(const std::vector<float>& logits,
+        float temperature,
+        int topK);
+    bool loadTokenMappings(const nlohmann::json& modelJson);
+    std::vector<float> applyTemperatureAndTopK(const std::vector<float>& logits,
+        float temperature,
+        int topK);
 
 
 
-    ModelWeights weights;
-    ModelConfig config;
-    std::unordered_map<std::string, int> tokenToIdx;
-    std::unordered_map<int, std::string> idxToToken;
+    bool simple_test();
 
-
-    bool test_embedding_simple();
-
-
-    bool test_attention();
 
 };
