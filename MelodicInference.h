@@ -22,6 +22,14 @@ public:
 private:
 
     torch::jit::script::Module model;
+    std::unordered_map<std::string, int64_t> stoi;
+    std::unordered_map<int64_t, std::string> itos;
+
+    bool loadTokenMappings(const std::string& path);
+    torch::Tensor preprocess(const std::vector<std::string>& tokens);
+    std::vector<std::string> postprocess(const torch::Tensor& logits,
+        float temperature,
+        int topK);
 
 
     bool simple_test();
