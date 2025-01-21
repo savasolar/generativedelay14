@@ -11,21 +11,19 @@ bool MelodicInference::loadModel() {
 
 
     try {
-        auto modelPath = "model_traced.pt";
-        
-
-        model = torch::jit::load(modelPath);
+        model = torch::jit::load("C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/model_traced.pt");
         model.eval();
 
-        DBG("Model parameters: " + juce::String(model.parameters().size()));
+        // load token mappings
+        tokenMappings = torch::jit::load("C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/token_mappings.pt");
 
-        DBG("Model loaded successfully");
+        DBG("Model and mappings loaded successfully");
 
         return true;
 
     }
     catch (const c10::Error& e) {
-        DBG("LibTorch error: " + juce::String(e.what()));
+        DBG("Model loading error: " + juce::String(e.what()));
         return false;
     }
 
@@ -44,44 +42,48 @@ std::vector<std::string> MelodicInference::generate(
     try {
         torch::NoGradGuard no_grad;
 
-        // Input preparation and validation
-        DBG("Input size: " + juce::String(prompt.size()));
+        //std::vector<int64_t> input_tokens;
+        //for (const auto& token : prompt) {
+        //    input_tokens.push_back(0); // Will replace with actual token lookup
+        //}
 
-        std::vector<int64_t> input_tokens;
+        // convert prompt to tokens
+        std::vector<int64_t> inputTokens;
         for (const auto& token : prompt) {
-            input_tokens.push_back(0); // Will replace with actual token lookup
+            inputTokens.push_back(std::stoi(token == "_" ? "0" : token));
         }
 
-        // create and validate tensor
-        
-        
-        
-        //auto input = torch::tensor(input_tokens).unsqueeze(0);
-        ////DBG("Input tensor shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
-        //DBG("Input tensor shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
-        //DBG("Input tensor device: " + juce::String(input.device().str()));
-
-
-
-        auto input = torch::tensor(input_tokens, torch::dtype(torch::kInt64)).unsqueeze(0);
-//        DBG("Input shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
-//        DBG("Input dtype: " + juce::String(input.dtype().name()));
-//        DBG("Input device: " + juce::String(input.device().str()));
-
-
+        // Create input tensor
+        auto input = torch::tensor(inputTokens, torch::dtype(torch::kInt64)).unsqueeze(0);
 
         // Forward pass
         std::vector<torch::jit::IValue> inputs = { input };
         auto output = model.forward(inputs).toTensor();
 
-        
-        // Validate output
-        DBG("Output shape: " + juce::String(output.sizes()[0]) + "x" +
-            juce::String(output.sizes()[1]) + "x" + juce::String(output.sizes()[2]));
+        // Get last logits
+        auto logits = output.select(1, -1);
+
+        // Apply temperature
+        logits = logits / temperature;
+
+        // Apply top-k
+        auto topk_values = std::get<0>(logits.topk(std::min(topK, (int)logits.size(-1))));
+        auto probs = torch::softmax(topk_values, -1);
+
+        // Sample from distribution
+        auto nextToken = torch::multinomial(probs, 1);
+
+        // Convert back to string
+        std::vector<std::string> result;
+        result.push_back(std::to_string(nextToken.item<int64_t>()));
+
+        return result;
 
 
 
-        return { "70" }; // Return dummy value to test if crash happens before forward()
+
+
+//        return { "70" }; // Return dummy value to test if crash happens before forward()
     }
     catch (const c10::Error& e) {
         DBG("Generate error: " + juce::String(e.what()));
