@@ -1,7 +1,7 @@
 #include "MelodicInference.h"
-#include <fstream>
+//#include <fstream>
 #include <random>
-#include <filesystem>
+//#include <filesystem>
 
 
 MelodicInference::MelodicInference() {}
@@ -13,42 +13,6 @@ bool MelodicInference::loadModel() {
     try {
         auto modelPath = "model_traced.pt";
         
-//        if (!std::filesystem::exists(modelPath)) {
-//            DBG("Model file not found: " + juce::String(modelPath));
-//            return false;
-//        }
-//        model = torch::jit::load(modelPath);
-//        model.eval();
-//
-//
-//        // Load and verify model
-////        DBG("Model device: " + juce::String(model.parameters().begin()->device().str()));
-//        DBG("Model parameters: " + juce::String(model.parameters().size()));
-//
-//
-//
-//        DBG("Model loaded successfully");
-//
-//        return true;
-
-
-        // Debug filesystem state
-        DBG("Current working directory: " + juce::String(std::filesystem::current_path().string()));
-        DBG("Attempting to load from: " + juce::String(modelPath));
-        DBG("File exists check: " + juce::String(std::filesystem::exists(modelPath) ? "YES" : "NO"));
-        DBG("Is regular file: " + juce::String(std::filesystem::is_regular_file(modelPath) ? "YES" : "NO"));
-
-        // Try to open file directly to verify permissions
-        std::ifstream f(modelPath, std::ios::binary);
-        DBG("Can open file: " + juce::String(f.good() ? "YES" : "NO"));
-        if (f.good()) {
-            f.close();
-        }
-
-        if (!std::filesystem::exists(modelPath)) {
-            DBG("Model file not found: " + juce::String(modelPath));
-            return false;
-        }
 
         model = torch::jit::load(modelPath);
         model.eval();
