@@ -250,6 +250,7 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
         buffer.clear();
     }
 
+    midiMessages.clear();
 }
 
 bool Generativedelay14AudioProcessor::hasEditor() const { return true; }
@@ -415,6 +416,7 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     // Initialize ML inference if not already done
     if (!mlInference)
     {
+        DBG("abt to load model");
         mlInference = std::make_unique<MelodicInference>();
         mlInference->loadModel();
     }

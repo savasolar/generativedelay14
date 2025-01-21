@@ -1,57 +1,67 @@
 #include "MelodicInference.h"
 #include <fstream>
 #include <random>
+#include <filesystem>
 
 
 MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
 
 bool MelodicInference::loadModel() {
-//    //juce::String modelPath = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/model_rtneural.json";
-//    
-//
-//    try {
-//        model = torch::jit::load("C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/model_traced.pt");
-//        if (!loadTokenMappings("C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/token_mappings.pt")) {
-//            return false;
-//        }
-//        return true;
-//    }
-//    catch (const std::exception& e) {
-//        DBG("Error loading model: " + String(e.what()));
-//        return false;
-//    }
-//
-//
-//    return {};
-//
-//
+
 
     try {
-        std::string modelPath = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/model_traced.pt";
+        auto modelPath = "model_traced.pt";
+        
+//        if (!std::filesystem::exists(modelPath)) {
+//            DBG("Model file not found: " + juce::String(modelPath));
+//            return false;
+//        }
+//        model = torch::jit::load(modelPath);
+//        model.eval();
+//
+//
+//        // Load and verify model
+////        DBG("Model device: " + juce::String(model.parameters().begin()->device().str()));
+//        DBG("Model parameters: " + juce::String(model.parameters().size()));
+//
+//
+//
+//        DBG("Model loaded successfully");
+//
+//        return true;
 
-        // Check file exists
-        std::ifstream file(modelPath);
-        if (!file.good()) {
-            DBG("Model file does not exist: " + String(modelPath));
+
+        // Debug filesystem state
+        DBG("Current working directory: " + juce::String(std::filesystem::current_path().string()));
+        DBG("Attempting to load from: " + juce::String(modelPath));
+        DBG("File exists check: " + juce::String(std::filesystem::exists(modelPath) ? "YES" : "NO"));
+        DBG("Is regular file: " + juce::String(std::filesystem::is_regular_file(modelPath) ? "YES" : "NO"));
+
+        // Try to open file directly to verify permissions
+        std::ifstream f(modelPath, std::ios::binary);
+        DBG("Can open file: " + juce::String(f.good() ? "YES" : "NO"));
+        if (f.good()) {
+            f.close();
+        }
+
+        if (!std::filesystem::exists(modelPath)) {
+            DBG("Model file not found: " + juce::String(modelPath));
             return false;
         }
 
         model = torch::jit::load(modelPath);
+        model.eval();
 
-        std::string tokenPath = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/token_mappings.pt";
-        if (!loadTokenMappings(tokenPath)) {
-            return false;
-        }
+        DBG("Model parameters: " + juce::String(model.parameters().size()));
+
+        DBG("Model loaded successfully");
 
         return true;
+
     }
     catch (const c10::Error& e) {
-        DBG("LibTorch Error loading model: " + String(e.what()));
-        return false;
-    }
-    catch (const std::exception& e) {
-        DBG("Standard Error loading model: " + String(e.what()));
+        DBG("LibTorch error: " + juce::String(e.what()));
         return false;
     }
 
@@ -68,95 +78,51 @@ std::vector<std::string> MelodicInference::generate(
     int topK)
 {
     try {
-        auto input = preprocess(prompt);
+        torch::NoGradGuard no_grad;
 
-        std::vector<torch::jit::IValue> inputs;
-        inputs.push_back(input);
+        // Input preparation and validation
+        DBG("Input size: " + juce::String(prompt.size()));
 
+        std::vector<int64_t> input_tokens;
+        for (const auto& token : prompt) {
+            input_tokens.push_back(0); // Will replace with actual token lookup
+        }
+
+        // create and validate tensor
+        
+        
+        
+        //auto input = torch::tensor(input_tokens).unsqueeze(0);
+        ////DBG("Input tensor shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
+        //DBG("Input tensor shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
+        //DBG("Input tensor device: " + juce::String(input.device().str()));
+
+
+
+        auto input = torch::tensor(input_tokens, torch::dtype(torch::kInt64)).unsqueeze(0);
+//        DBG("Input shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
+//        DBG("Input dtype: " + juce::String(input.dtype().name()));
+//        DBG("Input device: " + juce::String(input.device().str()));
+
+
+
+        // Forward pass
+        std::vector<torch::jit::IValue> inputs = { input };
         auto output = model.forward(inputs).toTensor();
-        output = output.slice(1, -1, output.size(1));  // Get last token
-        output = output / temperature;
 
-        return postprocess(output, temperature, topK);
+        
+        // Validate output
+        DBG("Output shape: " + juce::String(output.sizes()[0]) + "x" +
+            juce::String(output.sizes()[1]) + "x" + juce::String(output.sizes()[2]));
+
+
+
+        return { "70" }; // Return dummy value to test if crash happens before forward()
     }
-    catch (const std::exception& e) {
-        DBG("Error during generation: " + String(e.what()));
-        return {};
+    catch (const c10::Error& e) {
+        DBG("Generate error: " + juce::String(e.what()));
+        return { "0" };
     }
-}
-
-
-
-
-bool MelodicInference::loadTokenMappings(const std::string& path) {
-    try {
-        auto checkpoint = torch::jit::load(path);
-
-        auto loaded = checkpoint.forward({});
-
-        auto stoi_tensor = loaded.toGenericDict().at("stoi").toTensor();
-        auto itos_tensor = loaded.toGenericDict().at("itos").toTensor();
-
-
-
-
-
-        DBG(juce::String("stoi_tensor shape: ") + juce::String(stoi_tensor.sizes().size()));
-        DBG(juce::String("itos_tensor shape: ") + juce::String(itos_tensor.sizes().size()));
-
-        for (int64_t i = 0; i < std::min(int64_t(5), stoi_tensor.size(0)); i++) {
-            DBG("stoi_tensor[" + String(i) + "]: " +
-                String(stoi_tensor[i][0].toString()) + ", " +
-                String(stoi_tensor[i][1].item<int64_t>()));
-        }
-
-
-
-
-        for (int64_t i = 0; i < stoi_tensor.size(0); i++) {
-            std::string key = stoi_tensor[i][0].toString();
-            int64_t val = stoi_tensor[i][1].item<int64_t>();
-            stoi[key] = val;
-        }
-
-        for (int64_t i = 0; i < itos_tensor.size(0); i++) {
-            int64_t key = std::stoi(itos_tensor[i][0].toString());
-            std::string val = itos_tensor[i][1].toString();
-            itos[key] = val;
-        }
-
-        return true;
-    }
-    catch (const std::exception& e) {
-        DBG("Error loading mappings: " + String(e.what()));
-        return false;
-    }
-}
-
-
-torch::Tensor MelodicInference::preprocess(const std::vector<std::string>& tokens) {
-    std::vector<int64_t> indices;
-    for (const auto& token : tokens) {
-        indices.push_back(stoi[token]);
-    }
-    return torch::tensor(indices).unsqueeze(0); // Add batch dimension
-}
-
-std::vector<std::string> MelodicInference::postprocess(
-    const torch::Tensor& logits,
-    float temperature,
-    int topK)
-{
-    auto probs = logits.softmax(-1);
-    if (topK > 0) {
-        auto topk_out = torch::topk(probs, topK);
-        probs = std::get<0>(topk_out);
-    }
-
-    auto next_token = torch::multinomial(probs, 1);
-    int64_t token_id = next_token.item<int64_t>();
-
-    return { itos[token_id] };
 }
 
 
