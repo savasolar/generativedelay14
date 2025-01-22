@@ -3,11 +3,7 @@
 #include "model.h.c"
 
 
-MelodicInference::MelodicInference() {
-    File logFile = File::getSpecialLocation(File::userDesktopDirectory).getChildFile("plugin_debug.txt");
-    String message = "Plugin constructor called\n";
-    logFile.appendText(message);
-}
+MelodicInference::MelodicInference() {}
 MelodicInference::~MelodicInference() {}
 
 bool MelodicInference::loadModel() {
