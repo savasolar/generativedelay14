@@ -363,10 +363,15 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     if (!mlInference)
     {
 
-        DBG("Captured melody:");
+        DBG("Captured melody: (PluginProcessor)");
+        //for (const auto& token : capturedMelody) {
+        //    DBG(token + " ");
+        //}
+        juce::String melodyStr;
         for (const auto& token : capturedMelody) {
-            DBG(token + " ");
+            melodyStr += juce::String(token) + " ";
         }
+        DBG("Input melody: " + melodyStr.trimEnd());
 
 
         DBG("abt to load model");
@@ -380,11 +385,15 @@ void Generativedelay14AudioProcessor::generateNewMelody()
 
 
         // After mlInference->generate():
-        DBG("Generated melody:");
+        /*DBG("Generated melody:");
         for (const auto& token : generatedMelody) {
             DBG(token + " ");
+        }*/
+        juce::String resultStr;
+        for (const auto& token : generatedMelody) {
+            resultStr += juce::String(token) + " ";
         }
-
+        DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
 
     }
 

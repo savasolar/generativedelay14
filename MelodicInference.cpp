@@ -46,10 +46,15 @@ std::vector<std::string> MelodicInference::generate(
         }
 
         // In generate(), before processing:
-        DBG("Input melody:");
+        /*DBG("Input melody:");
         for (const auto& token : prompt) {
             DBG(token + " ");
+        }*/
+        juce::String melodyStr;
+        for (const auto& token : prompt) {
+            melodyStr += juce::String(token) + " ";
         }
+        DBG("Input melody: " + melodyStr.trimEnd());
 
         torch::NoGradGuard no_grad;
 
@@ -116,10 +121,15 @@ std::vector<std::string> MelodicInference::generate(
 
 
         // After processing but before return:
-        DBG("Generated melody:");
+        /*DBG("Generated melody:");
         for (const auto& token : result) {
             DBG(token + " ");
+        }*/
+        juce::String resultStr;
+        for (const auto& token : result) {
+            resultStr += juce::String(token) + " ";
         }
+        DBG("Generated melody: " + resultStr.trimEnd());
 
 
 
