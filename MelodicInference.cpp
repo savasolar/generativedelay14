@@ -1,7 +1,5 @@
 #include "MelodicInference.h"
-//#include <fstream>
 #include <random>
-//#include <filesystem>
 
 
 MelodicInference::MelodicInference() {}
@@ -45,11 +43,6 @@ std::vector<std::string> MelodicInference::generate(
             DBG("Prompt[" + juce::String(i) + "]: " + juce::String(prompt[i]));
         }
 
-        // In generate(), before processing:
-        /*DBG("Input melody:");
-        for (const auto& token : prompt) {
-            DBG(token + " ");
-        }*/
         juce::String melodyStr;
         for (const auto& token : prompt) {
             melodyStr += juce::String(token) + " ";
@@ -59,17 +52,6 @@ std::vector<std::string> MelodicInference::generate(
         torch::NoGradGuard no_grad;
 
         DBG("Starting token conversion");
-
-
-        //std::vector<int64_t> input_tokens;
-        //for (const auto& token : prompt) {
-        //    input_tokens.push_back(0); // Will replace with actual token lookup
-        //}
-
-        //std::vector<int64_t> inputTokens;
-        //for (const auto& token : prompt) {
-        //    inputTokens.push_back(token == "_" ? 0 : std::stoi(token));
-        //}
 
         std::vector<int64_t> inputTokens;
         for (const auto& token : prompt) {
@@ -107,14 +89,17 @@ std::vector<std::string> MelodicInference::generate(
         std::vector<std::string> result;
         for (int i = 0; i < 32; i++) {
             auto logits = model.forward(inputs).toTensor();
-            //logits = logits.select(1, -1) / temperature;
-            logits = logits.index({ torch::indexing::Slice(), -1 }).div(temperature);
+            DBG("logits shape: [" + juce::String(logits.sizes()[0]) + "," + juce::String(logits.sizes()[1]) + "]");
 
+            logits = logits.index({ torch::indexing::Slice(), -1 }).div(temperature);
+            DBG("after index shape: [" + juce::String(logits.sizes()[0]) + "]");
 
             auto topk_values = std::get<0>(logits.topk(std::min(topK, (int)logits.size(-1))));
             auto probs = torch::softmax(topk_values, -1);
-            auto next_token = torch::multinomial(probs, 1);
+            DBG("probs shape: [" + juce::String(probs.sizes()[0]) + "]");
 
+            auto next_token = torch::multinomial(probs, 1);
+            DBG("next_token shape: [" + juce::String(next_token.sizes()[0]) + "]");
 
             // Debug shapes before cat
             auto next_sizes = next_token.sizes();
@@ -133,11 +118,9 @@ std::vector<std::string> MelodicInference::generate(
 
 
 
-        // After processing but before return:
-        /*DBG("Generated melody:");
-        for (const auto& token : result) {
-            DBG(token + " ");
-        }*/
+
+
+
         juce::String resultStr;
         for (const auto& token : result) {
             resultStr += juce::String(token) + " ";

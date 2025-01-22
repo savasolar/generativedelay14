@@ -336,24 +336,6 @@ void Generativedelay14AudioProcessor::clearPlugin()
 }
 
 
-
-//void Generativedelay14AudioProcessor::handleMidiMessage(const juce::MidiMessage& message)
-//{
-//    if (message.isNoteOn())
-//    {
-//        currentMidiNote = message.getNoteNumber();
-//        lastPlayedNote = currentMidiNote;
-//        noteIsOn = true;
-//    }
-//    else if (message.isNoteOff() && message.getNoteNumber() == currentMidiNote)
-//    {
-//        noteIsOn = false;
-//        currentMidiNote = -1;
-//    }
-//}
-
-
-
 void Generativedelay14AudioProcessor::generateNewMelody()
 {
     
@@ -364,9 +346,7 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     {
 
         DBG("Captured melody: (PluginProcessor)");
-        //for (const auto& token : capturedMelody) {
-        //    DBG(token + " ");
-        //}
+
         juce::String melodyStr;
         for (const auto& token : capturedMelody) {
             melodyStr += juce::String(token) + " ";
@@ -382,13 +362,6 @@ void Generativedelay14AudioProcessor::generateNewMelody()
             return;
         }
 
-
-
-        // After mlInference->generate():
-        /*DBG("Generated melody:");
-        for (const auto& token : generatedMelody) {
-            DBG(token + " ");
-        }*/
         juce::String resultStr;
         for (const auto& token : generatedMelody) {
             resultStr += juce::String(token) + " ";

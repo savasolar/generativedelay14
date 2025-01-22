@@ -4,10 +4,7 @@
 #include <string>
 
 #include <torch/script.h>
-//#include <unordered_map>
 
-//#include <RTNeural/RTNeural.h>
-//#include <memory>
 
 class MelodicInference {
 public:

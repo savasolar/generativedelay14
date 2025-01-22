@@ -83,16 +83,6 @@ private:
 
 
     // input capture
-    // was:
-        //int currentMidiNote = -1;
-        //bool noteIsOn = false;
-        //int lastPlayedNote = -1;
-
-        //int currentPosition = 0;
-        //double samplesPerSymbol = 0;
-        //double sampleCounter = 0;
-        //int currentNoteNumber = -1;
-
     int inputNote = -1;                 // current input midi note (-1 if none)
     bool inputNoteActive = false;       // whether input note is playing
     int lastInputNote = -1;             // last input note number
