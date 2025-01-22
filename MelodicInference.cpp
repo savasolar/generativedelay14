@@ -1,8 +1,13 @@
 #include "MelodicInference.h"
 #include <random>
+#include "model.h.c"
 
 
-MelodicInference::MelodicInference() {}
+MelodicInference::MelodicInference() {
+    File logFile = File::getSpecialLocation(File::userDesktopDirectory).getChildFile("plugin_debug.txt");
+    String message = "Plugin constructor called\n";
+    logFile.appendText(message);
+}
 MelodicInference::~MelodicInference() {}
 
 bool MelodicInference::loadModel() {

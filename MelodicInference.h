@@ -2,10 +2,9 @@
 #include <JuceHeader.h>
 #include <vector>
 #include <string>
-#include <onnxruntime_cxx_api.h>
-#include <nlohmann/json.hpp>
-
-//#include <torch/script.h>
+//#include <onnxruntime_cxx_api.h>
+//#include <nlohmann/json.hpp>
+#include "model.h.h"
 
 
 class MelodicInference {
