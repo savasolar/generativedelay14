@@ -2,8 +2,10 @@
 #include <JuceHeader.h>
 #include <vector>
 #include <string>
+#include <onnxruntime_cxx_api.h>
+#include <nlohmann/json.hpp>
 
-#include <torch/script.h>
+//#include <torch/script.h>
 
 
 class MelodicInference {
@@ -18,8 +20,6 @@ public:
 
 private:
 
-    torch::jit::script::Module model;
-    torch::jit::script::Module tokenMappings;
 
     bool simple_test();
 
