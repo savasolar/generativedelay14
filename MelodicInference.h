@@ -25,6 +25,5 @@ private:
     torch::jit::script::Module tokenMappings;
 
     bool simple_test();
-    juce::String joinMelodyWithSpaces(const std::vector<std::string>& melody);
 
 };

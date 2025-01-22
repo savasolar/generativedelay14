@@ -93,7 +93,10 @@ std::vector<std::string> MelodicInference::generate(
         // Debug print
         DBG("Input tokens size: " + juce::String(inputTokens.size()));
 
-        auto input = torch::tensor(inputTokens, torch::dtype(torch::kInt64)).unsqueeze(0);
+//        auto input = torch::tensor(inputTokens, torch::dtype(torch::kInt64)).unsqueeze(0);
+        auto input = torch::tensor(inputTokens, torch::dtype(torch::kInt64))[None]; // Match [None, ...] from Python
+
+
 
         DBG("Input tensor shape: " + juce::String(input.sizes()[0]) + "x" + juce::String(input.sizes()[1]));
 
@@ -105,14 +108,23 @@ std::vector<std::string> MelodicInference::generate(
         std::vector<std::string> result;
         for (int i = 0; i < 32; i++) {
             auto logits = model.forward(inputs).toTensor();
-            logits = logits.select(1, -1) / temperature;
+            //logits = logits.select(1, -1) / temperature;
+            logits = logits.index({ Slice(), -1 }).div(temperature);
+
 
             auto topk_values = std::get<0>(logits.topk(std::min(topK, (int)logits.size(-1))));
             auto probs = torch::softmax(topk_values, -1);
             auto next_token = torch::multinomial(probs, 1);
 
-//            input = torch::cat({ input, next_token.unsqueeze(0) }, 1);
+
+            // Debug shapes before cat
+            auto next_sizes = next_token.sizes();
+            auto input_sizes = input.sizes();
+            DBG("next_token shape: [" + juce::String(next_sizes[0]) + "]; input shape: [" + juce::String(input_sizes[0]) + "," + juce::String(input_sizes[1]) + "]");
+
+
             input = torch::cat({ input, next_token.unsqueeze(1) }, 1);
+
             inputs = { input };
             result.push_back(std::to_string(next_token.item<int64_t>()));
         }
