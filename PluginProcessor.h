@@ -77,7 +77,6 @@ private:
     std::vector<std::string> capturedMelody;
     std::vector<std::string> generatedMelody;
 
-
     // input capture
     int inputNote = -1;                 // current input midi note (-1 if none)
     bool inputNoteActive = false;       // whether input note is playing
