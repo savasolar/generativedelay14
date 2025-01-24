@@ -1,7 +1,4 @@
 #include "MelodicInference.h"
-//#include <random>
-//#include "model.h.c"
-
 
 MelodicInference::MelodicInference() : rng(std::random_device{}()) {
     DBG("Starting constructor");
@@ -64,96 +61,6 @@ bool MelodicInference::loadTokenMappings() {
         return false;
     }
 }
-
-
-
-//
-//std::vector<std::string> MelodicInference::generate(
-//    const std::vector<std::string>& prompt,
-//    float temperature,
-//    int topK_count)
-//{
-//    DBG("Starting generate");
-//    if (!session) {
-//        DBG("No session - call loadModel() first");
-//        return {};
-//    }
-//
-//    // Convert prompt to input tensor
-//    DBG("Converting prompt tokens: " + String(prompt.size()));
-//    std::vector<int64_t> inputIds;
-//    for (const auto& token : prompt) {
-//        if (stoi.find(token) == stoi.end()) {
-//            DBG("Token not found in mapping: " + String(token));
-//            return {};
-//        }
-//        inputIds.push_back(stoi[token]);
-//    }
-//
-//    const int64_t seqLen = 32;
-//    std::vector<int64_t> inputShape = { 1, seqLen };
-//
-//    // Pad or truncate to seqLen
-//    DBG("Resizing input to " + String(seqLen));
-//    inputIds.resize(seqLen, 0);
-//
-//    // Create ONNX input tensor
-//    DBG("Creating input tensor");
-//    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
-//        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-//
-//    Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
-//        memoryInfo, inputIds.data(), inputIds.size(), inputShape.data(), inputShape.size());
-//
-//    // Run inference
-//    DBG("Running inference");
-//    const char* inputNames[] = { "input" };
-//    const char* outputNames[] = { "output" };
-//
-//    auto outputTensors = session->Run(
-//        Ort::RunOptions{ nullptr },
-//        inputNames, &inputTensor, 1,
-//        outputNames, 1);
-//
-//    // Process logits from output
-//    DBG("Processing output logits");
-//    float* logitsData = outputTensors[0].GetTensorMutableData<float>();
-//    const size_t vocabSize = stoi.size();
-//    DBG("Vocab size: " + String(vocabSize));
-//
-//    std::vector<float> lastLogits(logitsData + (seqLen - 1) * vocabSize,
-//        logitsData + seqLen * vocabSize);
-//
-//    // Apply temperature
-//    DBG("Applying temperature: " + String(temperature));
-//    for (auto& logit : lastLogits) {
-//        logit /= temperature;
-//    }
-//
-//    // Get top-k indices
-//    DBG("Getting top " + String(topK_count) + " indices");
-//    auto topkIndices = topK(lastLogits, topK_count);
-//
-//    // Sample from top-k using softmax probabilities
-//    std::vector<float> probs;
-//    probs.reserve(topK_count);
-//    for (auto idx : topkIndices) {
-//        probs.push_back(softmax(lastLogits[idx], lastLogits));
-//    }
-//
-//    DBG("Sampling from distribution");
-//    std::discrete_distribution<> dist(probs.begin(), probs.end());
-//    int64_t nextToken = topkIndices[dist(rng)];
-//
-//    // Convert back to string
-//    DBG("Selected token: " + String(nextToken));
-//    std::vector<std::string> output = prompt;
-//    output.push_back(itos[nextToken]);
-//
-//    DBG("Generate complete");
-//    return output;
-//}
-
 
 std::vector<std::string> MelodicInference::generate(
     const std::vector<std::string>& prompt,

@@ -18,7 +18,6 @@ public:
     std::vector<std::string> generate(const std::vector<std::string>& prompt,
         float temperature = 0.8f,
         int topK_count = 200);
-    //FUCK
 
 private:
 

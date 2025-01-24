@@ -29,8 +29,6 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-
-
     juce::AudioPluginFormatManager pluginFormatManager;
     std::unique_ptr<juce::AudioPluginInstance> innerPlugin;
     std::function<void()> pluginChanged;
@@ -41,8 +39,6 @@ public:
     std::unique_ptr<juce::AudioProcessorEditor> createInnerEditor() const;
     void clearPlugin();
 
-
-
     void setTemp(float newTemp) { temp = newTemp; }
     float getTemp() const { return temp; }
 
@@ -52,6 +48,7 @@ public:
         if (active)
             samplesPerSymbol = (60.0 / bpm) * getSampleRate() / 4.0;
     }
+
     int getBpm() const { return bpm; }
 
     void setVel(int newVel) { vel = newVel; }
@@ -63,7 +60,6 @@ public:
     const std::vector<std::string>& getCapturedMelody() const { return capturedMelody; };
     const std::vector<std::string>& getGeneratedMelody() const { return generatedMelody; };
 
-    //void handleMidiMessage(const juce::MidiMessage& message);
     void generateNewMelody();
 
 private:
@@ -101,7 +97,6 @@ private:
     // generation control
     bool bottleCap = true;
     juce::URL flaskURL;
-
 
     std::unique_ptr<MelodicInference> mlInference;
 

@@ -57,11 +57,6 @@ bool Generativedelay14AudioProcessor::isMidiEffect() const
 }
 
 double Generativedelay14AudioProcessor::getTailLengthSeconds() const { return 0.0; }
-//int Generativedelay14AudioProcessor::getNumPrograms() { return 1; }
-//int Generativedelay14AudioProcessor::getCurrentProgram() { return 0; }
-//void Generativedelay14AudioProcessor::setCurrentProgram (int index) { }
-//const juce::String Generativedelay14AudioProcessor::getProgramName (int index) { return {}; }
-//void Generativedelay14AudioProcessor::changeProgramName (int index, const juce::String& newName) { }
 
 void Generativedelay14AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -165,8 +160,6 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
 
         capturedMelody[capturePosition % 32] = currentSlot;
         
-        //DBG(capturedMelody[0] + " " + capturedMelody[1] + " " + capturedMelody[2] + " " + capturedMelody[3] + " " + capturedMelody[4] + ...  + capturedMelody[31]);
-
         capturePosition++;
 
         // handle melody generation
@@ -179,28 +172,19 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
                 [](const std::string& element) { return element != "_"; });
 
             if (hasNonUnderscores)
-            {
                 bottleCap = false;
-            }
             else
-            {
                 bottleCap = true;
-            }
-
 
             if (bottleCap == false)
-            {
                 generateNewMelody();                
-            }
 
             bottleCap = true; // prevent capturedMelody from sending more melodies to neural net before it is done generating
 
             std::fill(capturedMelody.begin(), capturedMelody.end(), "_");
         }
 
-
-        // add playback functionality for generated melodies on a symbol-by-symbol basis here
-
+        // add playback functionality for generated melodies on a symbol-by-symbol basis
         if (!generatedMelody.empty())
         {
             const std::string& currentSymbol = generatedMelody[playbackPosition % generatedMelody.size()];
@@ -223,32 +207,21 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
             }
             // Note: for "-" we do nothing (continues current note)
             // Note: for "_" we've already handled any needed note-off above
-
             playbackPosition++;
         }
-
-
-
 
         captureCounter -= samplesPerSymbol;
     }
     captureCounter += buffer.getNumSamples();
 
-
     // add back the input MIDI
     midiMessages.addEvents(inputMidi, 0, buffer.getNumSamples(), 0);
 
-
-
     // Process through hosted plugin
     if (innerPlugin != nullptr)
-    {
         innerPlugin->processBlock(buffer, midiMessages);
-    }
     else
-    {
         buffer.clear();
-    }
 
     midiMessages.clear();
 }
@@ -261,15 +234,9 @@ juce::AudioProcessorEditor* Generativedelay14AudioProcessor::createEditor()
 }
 
 //==============================================================================
-void Generativedelay14AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
-{
+void Generativedelay14AudioProcessor::getStateInformation (juce::MemoryBlock& destData) {}
 
-}
-
-void Generativedelay14AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
-{
-
-}
+void Generativedelay14AudioProcessor::setStateInformation (const void* data, int sizeInBytes) {}
 
 
 void Generativedelay14AudioProcessor::setNewPlugin(const juce::PluginDescription& pd, const juce::MemoryBlock& mb)
@@ -338,13 +305,9 @@ void Generativedelay14AudioProcessor::clearPlugin()
 
 void Generativedelay14AudioProcessor::generateNewMelody()
 {
-    
-
-
     // Initialize ML inference if not already done
     if (!mlInference)
     {
-
         DBG("Captured melody: (PluginProcessor)");
 
         juce::String melodyStr;
@@ -352,7 +315,6 @@ void Generativedelay14AudioProcessor::generateNewMelody()
             melodyStr += juce::String(token) + " ";
         }
         DBG("Input melody: " + melodyStr.trimEnd());
-
 
         DBG("abt to load model");
 
@@ -369,7 +331,6 @@ void Generativedelay14AudioProcessor::generateNewMelody()
         DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
 
     }
-
 
     // Convert capturedMelody directly
     generatedMelody = mlInference->generate(capturedMelody, temp, 200);
