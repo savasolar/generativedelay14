@@ -237,6 +237,8 @@ std::vector<std::string> MelodicInference::generate(
 
     DBG("Generate complete");
     return output;
+    // fuck
+    // fuck fuck fuck
 
 }
 
