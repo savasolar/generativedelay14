@@ -14,8 +14,10 @@ bool MelodicInference::loadModel() {
         env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "test");
         Ort::SessionOptions session_options;
 
-        std::string model_path = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/melodic_model.ort";
-        
+//        std::string model_path = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/Model/melodic_model.ort";
+        std::string model_path = "C:/Users/savas/Desktop/2025-02-09-melodic-nanogpt-2-onnx/melodygpt_v02_quantized.ort";
+
+
         std::wstring wmodel_path(model_path.begin(), model_path.end());
         session = std::make_unique<Ort::Session>(
             *env,
@@ -36,7 +38,8 @@ bool MelodicInference::loadModel() {
 
 bool MelodicInference::loadTokenMappings() {
     try {
-        std::string path = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/token_mappings.json";
+//        std::string path = "C:/Users/savas/Documents/JUCE Projects/generativedelay14/token_mappings.json";
+        std::string path = "C:/Users/savas/Desktop/2025-02-09-melodic-nanogpt-2-onnx/token_mappings.json";
         DBG("Loading tokens from: " + String(path));
         std::ifstream file(path);
         nlohmann::json j;
@@ -73,68 +76,73 @@ std::vector<std::string> MelodicInference::generate(
         return {};
     }
 
-    std::vector<std::string> output;
-    output.reserve(32);
+    //std::vector<std::string> output;
+    //output.reserve(32);
 
-    DBG("Converting prompt tokens: " + String(prompt.size()));
-    std::vector<int64_t> inputIds;
-    for (const auto& token : prompt) {
-        if (stoi.find(token) == stoi.end()) {
-            DBG("Token not found in mapping: " + String(token));
-            return {};
-        }
-        inputIds.push_back(stoi[token]);
-    }
+    //DBG("Converting prompt tokens: " + String(prompt.size()));
+    //std::vector<int64_t> inputIds;
+    //for (const auto& token : prompt) {
+    //    if (stoi.find(token) == stoi.end()) {
+    //        DBG("Token not found in mapping: " + String(token));
+    //        return {};
+    //    }
+    //    inputIds.push_back(stoi[token]);
+    //}
 
-    const int64_t seqLen = 32;
-    std::vector<int64_t> inputShape = { 1, seqLen };
-    DBG("Resizing input to " + String(seqLen));
-    inputIds.resize(seqLen, 0);
+    //const int64_t seqLen = 32;
+    //std::vector<int64_t> inputShape = { 1, seqLen };
+    //DBG("Resizing input to " + String(seqLen));
+    //inputIds.resize(seqLen, 0);
 
-    Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
-        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-    Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
-        memoryInfo, inputIds.data(), inputIds.size(), inputShape.data(), inputShape.size());
+    //Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
+    //    OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+    //Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
+    //    memoryInfo, inputIds.data(), inputIds.size(), inputShape.data(), inputShape.size());
 
-    const char* inputNames[] = { "input" };
-    const char* outputNames[] = { "output" };
-    auto outputTensors = session->Run(
-        Ort::RunOptions{ nullptr },
-        inputNames, &inputTensor, 1,
-        outputNames, 1);
+    //const char* inputNames[] = { "input" };
+    //const char* outputNames[] = { "output" };
+    //auto outputTensors = session->Run(
+    //    Ort::RunOptions{ nullptr },
+    //    inputNames, &inputTensor, 1,
+    //    outputNames, 1);
 
-    float* logitsData = outputTensors[0].GetTensorMutableData<float>();
-    const size_t vocabSize = stoi.size();
-    DBG("Vocab size: " + String(vocabSize));
+    //float* logitsData = outputTensors[0].GetTensorMutableData<float>();
+    //const size_t vocabSize = stoi.size();
+    //DBG("Vocab size: " + String(vocabSize));
 
-    for (int pos = 0; pos < 32; pos++) {
-        std::vector<float> posLogits(logitsData + pos * vocabSize,
-            logitsData + (pos + 1) * vocabSize);
+    //for (int pos = 0; pos < 32; pos++) {
+    //    std::vector<float> posLogits(logitsData + pos * vocabSize,
+    //        logitsData + (pos + 1) * vocabSize);
 
-        DBG("Applying temperature: " + String(temperature));
-        for (auto& logit : posLogits) {
-            logit /= temperature;
-        }
+    //    DBG("Applying temperature: " + String(temperature));
+    //    for (auto& logit : posLogits) {
+    //        logit /= temperature;
+    //    }
 
-        DBG("Getting top " + String(topK_count) + " indices");
-        auto topkIndices = topK(posLogits, topK_count);
+    //    DBG("Getting top " + String(topK_count) + " indices");
+    //    auto topkIndices = topK(posLogits, topK_count);
 
-        std::vector<float> probs;
-        probs.reserve(topK_count);
-        for (auto idx : topkIndices) {
-            probs.push_back(softmax(posLogits[idx], posLogits));
-        }
+    //    std::vector<float> probs;
+    //    probs.reserve(topK_count);
+    //    for (auto idx : topkIndices) {
+    //        probs.push_back(softmax(posLogits[idx], posLogits));
+    //    }
 
-        DBG("Sampling from distribution");
-        std::discrete_distribution<> dist(probs.begin(), probs.end());
-        int64_t nextToken = topkIndices[dist(rng)];
+    //    DBG("Sampling from distribution");
+    //    std::discrete_distribution<> dist(probs.begin(), probs.end());
+    //    int64_t nextToken = topkIndices[dist(rng)];
 
-        DBG("Selected token: " + String(nextToken));
-        output.push_back(itos[nextToken]);
-    }
+    //    DBG("Selected token: " + String(nextToken));
+    //    output.push_back(itos[nextToken]);
+    //}
 
-    DBG("Generate complete");
-    return output;
+    //DBG("Generate complete");
+    //return output;
+
+
+    // changing code for ort model v2
+
+
 }
 
 
