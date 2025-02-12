@@ -76,73 +76,7 @@ std::vector<std::string> MelodicInference::generate(
         return {};
     }
 
-    //std::vector<std::string> output;
-    //output.reserve(32);
-
-    //DBG("Converting prompt tokens: " + String(prompt.size()));
-    //std::vector<int64_t> inputIds;
-    //for (const auto& token : prompt) {
-    //    if (stoi.find(token) == stoi.end()) {
-    //        DBG("Token not found in mapping: " + String(token));
-    //        return {};
-    //    }
-    //    inputIds.push_back(stoi[token]);
-    //}
-
-    //const int64_t seqLen = 32;
-    //std::vector<int64_t> inputShape = { 1, seqLen };
-    //DBG("Resizing input to " + String(seqLen));
-    //inputIds.resize(seqLen, 0);
-
-    //Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
-    //    OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
-    //Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
-    //    memoryInfo, inputIds.data(), inputIds.size(), inputShape.data(), inputShape.size());
-
-    //const char* inputNames[] = { "input" };
-    //const char* outputNames[] = { "output" };
-    //auto outputTensors = session->Run(
-    //    Ort::RunOptions{ nullptr },
-    //    inputNames, &inputTensor, 1,
-    //    outputNames, 1);
-
-    //float* logitsData = outputTensors[0].GetTensorMutableData<float>();
-    //const size_t vocabSize = stoi.size();
-    //DBG("Vocab size: " + String(vocabSize));
-
-    //for (int pos = 0; pos < 32; pos++) {
-    //    std::vector<float> posLogits(logitsData + pos * vocabSize,
-    //        logitsData + (pos + 1) * vocabSize);
-
-    //    DBG("Applying temperature: " + String(temperature));
-    //    for (auto& logit : posLogits) {
-    //        logit /= temperature;
-    //    }
-
-    //    DBG("Getting top " + String(topK_count) + " indices");
-    //    auto topkIndices = topK(posLogits, topK_count);
-
-    //    std::vector<float> probs;
-    //    probs.reserve(topK_count);
-    //    for (auto idx : topkIndices) {
-    //        probs.push_back(softmax(posLogits[idx], posLogits));
-    //    }
-
-    //    DBG("Sampling from distribution");
-    //    std::discrete_distribution<> dist(probs.begin(), probs.end());
-    //    int64_t nextToken = topkIndices[dist(rng)];
-
-    //    DBG("Selected token: " + String(nextToken));
-    //    output.push_back(itos[nextToken]);
-    //}
-
-    //DBG("Generate complete");
-    //return output;
-
-
-    // changing code for ort model v2
-
-    // convert entire prompt to a single string
+    // convert prompt to string and process character by character
     std::string promptStr;
     for (const auto& token : prompt) {
         promptStr += token + " ";
@@ -153,14 +87,14 @@ std::vector<std::string> MelodicInference::generate(
         std::string charStr(1, c);
         if (stoi.find(charStr) == stoi.end()) {
             DBG("Character not found in mapping: " + String(charStr));
-            return {};
+            continue; // skip invalid characters instead of returning
         }
         generatedTokens.push_back(stoi[charStr]);
     }
 
-    // generate 128 new tokens autoregressively
+    // generate tokens autoregressively
     for (int i = 0; i < 128; i++) {
-        // take last 32 tokens or all if less than 32
+        // Take last 32 tokens or pad if less
         std::vector<int64_t> inputIds;
         if (generatedTokens.size() > 32) {
             inputIds = std::vector<int64_t>(
@@ -170,12 +104,12 @@ std::vector<std::string> MelodicInference::generate(
         }
         else {
             inputIds = generatedTokens;
-            inputIds.resize(32, 0); // pad to 32 if needed
+            inputIds.resize(32, 0); // pad to 32
         }
 
         std::vector<int64_t> inputShape = { 1, 32 };
 
-        // run inference
+        // Run inference
         Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
             OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
         Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
@@ -188,7 +122,7 @@ std::vector<std::string> MelodicInference::generate(
             inputNames, &inputTensor, 1,
             outputNames, 1);
 
-        // get logits for last position only
+        // Get logits for last position only
         float* logitsData = outputTensors[0].GetTensorMutableData<float>();
         const size_t vocabSize = stoi.size();
         std::vector<float> lastLogits(
@@ -196,13 +130,12 @@ std::vector<std::string> MelodicInference::generate(
             logitsData + (32 * vocabSize)
         );
 
-        // apply temperature and sample
+        // Apply temperature and sample
         for (auto& logit : lastLogits) {
             logit /= temperature;
         }
 
         auto topkIndices = topK(lastLogits, topK_count);
-
         std::vector<float> probs;
         probs.reserve(topK_count);
         for (auto idx : topkIndices) {
@@ -212,17 +145,17 @@ std::vector<std::string> MelodicInference::generate(
         std::discrete_distribution<> dist(probs.begin(), probs.end());
         int64_t nextToken = topkIndices[dist(rng)];
 
-        // add new token to sequence
+        // Add new token to sequence
         generatedTokens.push_back(nextToken);
     }
 
-    // Convert generated tokens to text and process into output format
+    // convert generated tokens to text and process into output format
     std::string generatedChars;
     for (size_t i = promptStr.length(); i < generatedTokens.size(); i++) {
         generatedChars += itos[generatedTokens[i]];
     }
 
-    // Split into tokens and take first 32
+    // split into tokens and take first 32
     std::vector<std::string> output;
     std::istringstream stream(generatedChars);
     std::string token;
@@ -230,15 +163,14 @@ std::vector<std::string> MelodicInference::generate(
         output.push_back(token);
     }
 
-    // Pad with "_" if needed
+    // pad with "_" if needed
     while (output.size() < 32) {
         output.push_back("_");
     }
 
     DBG("Generate complete");
     return output;
-    // fuck
-    // fuck fuck fuck
+
 
 }
 
