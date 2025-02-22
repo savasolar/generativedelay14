@@ -328,7 +328,7 @@ void Generativedelay14AudioProcessor::generateNewMelody()
         for (const auto& token : generatedMelody) {
             resultStr += juce::String(token) + " ";
         }
-        DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
+//        DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
 
     }
 
