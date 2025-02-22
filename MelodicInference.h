@@ -8,6 +8,11 @@
 #include <Eigen/Dense>
 #include <fstream>
 #include "nlohmann/json.hpp"
+#include <algorithm>
+#include <numeric>
+#include <cmath>
+#include <iostream>
+#include <sstream>
 
 class MelodicInference {
 public:
