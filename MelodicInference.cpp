@@ -215,37 +215,34 @@ bool MelodicInference::loadTokenMappings() {
 
 
 std::vector<std::string> MelodicInference::generate(const std::vector<std::string>& prompt, float temperature, int topK_count) {
-
     if (!session) {
-        DBG("no session - call loadModel() first");
+        DBG("No session - call loadModel() first");
         return {};
     }
 
-    // join prompt into a single string
-
+    // Join prompt into a single string, exactly as VST intends
     std::string promptStr;
     for (size_t i = 0; i < prompt.size(); ++i) {
         promptStr += prompt[i];
         if (i < prompt.size() - 1) promptStr += " ";
     }
-    DBG("Prompt: " << promptStr);
+    DBG("Prompt: " + String(promptStr)); // e.g., "60 - _ _"
 
-    // tokenize character-by-character
+    // Tokenize character-by-character like Python
     std::vector<int64_t> tokens;
     for (char c : promptStr) {
         std::string charStr(1, c);
-        if (stoi.count(charStr)) {
+        if (stoi.find(charStr) != stoi.end()) {
             tokens.push_back(stoi[charStr]);
         }
         else {
-            DBG("Unmapped character: " << charStr);
+            DBG("Unmapped char: " + String(charStr));
         }
     }
+    DBG("Token count: " + String(tokens.size()));
 
-    // generate 128 tokens
     std::vector<int64_t> generated_tokens = tokens;
-    for (int i = 0; i < 128; ++i) {
-        // take last 32 tokens or full sequence if shorter
+    for (int i = 0; i < 128; i++) { // Generate 128 tokens like Python
         std::vector<int64_t> input_tokens;
         if (generated_tokens.size() > 32) {
             input_tokens.assign(generated_tokens.end() - 32, generated_tokens.end());
@@ -254,52 +251,53 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
             input_tokens = generated_tokens;
         }
         std::vector<int64_t> inputShape = { 1, static_cast<int64_t>(input_tokens.size()) };
-
-        // create input tensor
         Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-        Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(memoryInfo, input_tokens.data(), input_tokens.size(), inputShape.data(), inputShape.size());
+        Ort::Value inputTensor = Ort::Value::CreateTensor<int64_t>(
+            memoryInfo, input_tokens.data(), input_tokens.size(), inputShape.data(), inputShape.size());
 
-        // run inference
         const char* inputNames[] = { "input" };
         const char* outputNames[] = { "output" };
         auto outputTensors = session->Run(Ort::RunOptions{ nullptr }, inputNames, &inputTensor, 1, outputNames, 1);
 
-        // Get logits for the last position
         float* logitsData = outputTensors[0].GetTensorMutableData<float>();
         size_t vocabSize = stoi.size();
         std::vector<float> lastLogits(logitsData + (input_tokens.size() - 1) * vocabSize, logitsData + input_tokens.size() * vocabSize);
 
-        // Sampling
+        // Temperature scaling
         for (auto& logit : lastLogits) {
             logit /= temperature;
         }
+        // Top-k filtering
         auto topkIndices = topK(lastLogits, topK_count);
         std::vector<float> filtered_logits(lastLogits.size(), -std::numeric_limits<float>::infinity());
         for (auto idx : topkIndices) {
             filtered_logits[idx] = lastLogits[idx];
         }
+        // Softmax
         float maxLogit = *std::max_element(filtered_logits.begin(), filtered_logits.end());
         std::vector<float> probs(filtered_logits.size());
         float sum = 0.0f;
-        for (size_t j = 0; j < filtered_logits.size(); j++) {
+        for (size_t j = 0; j < probs.size(); ++j) {
             probs[j] = std::exp(filtered_logits[j] - maxLogit);
             sum += probs[j];
         }
         for (auto& p : probs) {
             p /= sum;
         }
+        // Sample with seeded RNG
         std::discrete_distribution<> dist(probs.begin(), probs.end());
         int64_t next_token = dist(rng);
         generated_tokens.push_back(next_token);
     }
 
-    // Post-process into 32 symbol-level tokens
     std::string generated_text;
-    for (size_t i = tokens.size(); i < generated_tokens.size(); ++i) {
-        if (itos.count(generated_tokens[i])) {
+    for (size_t i = tokens.size(); i < generated_tokens.size(); ++i) { // Skip prompt
+        if (itos.find(generated_tokens[i]) != itos.end()) {
             generated_text += itos[generated_tokens[i]];
         }
     }
+    DBG("Generated text: " + String(generated_text));
+
     std::vector<std::string> output;
     std::istringstream iss(generated_text);
     std::string token;
@@ -309,8 +307,11 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
     while (output.size() < 32) {
         output.push_back("_");
     }
+    DBG("Output size: " + String(output.size()));
     return output;
 }
+
+
 
 // Helper: Top-k indices
 std::vector<int64_t> MelodicInference::topK(const std::vector<float>& logits, int k) {
