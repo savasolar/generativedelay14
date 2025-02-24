@@ -19,7 +19,7 @@ bool MelodicInference::loadModel() {
 		// Set session options with memory optimizations
 		Ort::SessionOptions session_options;
 		// Enable extended graph optimizations to reduce memory usage
-		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
 		// Path to the model file
 		std::string model_path = "C:/Users/savas/Desktop/2025-02-09-melodic-nanogpt-2-onnx/melodygpt_v02_quantized.ort";
@@ -123,61 +123,42 @@ int64_t MelodicInference::sampleFromLogits(const std::vector<float>& logits, flo
 }
 
 std::vector<std::string> MelodicInference::generate(const std::vector<std::string>& prompt, float temperature, int top_k) {
-	if (!session) {
-		DBG("Error: Model not loaded.");
+	if (!session || prompt.size() != 32) {
+		DBG("Error: Model not loaded or invalid prompt size.");
 		return std::vector<std::string>(32, "_");
 	}
 
-	if (prompt.size() != 32) {
-		DBG("Error: Prompt must be 32 symbols, got " + juce::String(prompt.size()));
-		return std::vector<std::string>(32, "_");
-	}
+	std::string prompt_str = symbolsToString(prompt);
+	std::vector<int64_t> generated = tokenize(prompt_str);
 
-	// Step 1: Convert prompt symbols to a space-separated string
-	std::string prompt_str = symbolsToString(prompt);  // e.g., "60 - _ _"
-
-	// Step 2: Tokenize into character-level tokens
-	std::vector<int64_t> tokens = tokenize(prompt_str);  // e.g., ['6', '0', ' ', '-', ' ', '_']
-	std::vector<int64_t> generated = tokens;
-
-	// Step 3: Generate 128 additional character tokens
 	for (int i = 0; i < 128; ++i) {
-		// Take the last 32 character tokens as context (or fewer if shorter)
 		size_t context_size = std::min(32ull, generated.size());
 		std::vector<int64_t> context(generated.end() - context_size, generated.end());
 
-		// Create input tensor
 		Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 		std::vector<int64_t> input_shape = { 1, static_cast<int64_t>(context.size()) };
 		Ort::Value input_tensor = Ort::Value::CreateTensor<int64_t>(
 			memory_info, context.data(), context.size(), input_shape.data(), input_shape.size());
 
-		// Run the model
 		const char* input_names[] = { "input" };
 		const char* output_names[] = { "output" };
 		auto output_tensors = session->Run(Ort::RunOptions{ nullptr }, input_names, &input_tensor, 1, output_names, 1);
 
-		// Get logits for the last position
 		float* logits_data = output_tensors[0].GetTensorMutableData<float>();
 		auto shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-		if (shape.size() != 3 || shape[0] != 1 || shape[1] != context.size()) {
+		if (shape.size() != 3 || shape[0] != 1 || shape[1] != 1) {
 			DBG("Unexpected output shape: [" + juce::String(shape[0]) + ", " +
 				juce::String(shape[1]) + ", " + juce::String(shape[2]) + "]");
 			break;
 		}
 		size_t vocab_size = shape[2];
-		float* last_logits = logits_data + (context.size() - 1) * vocab_size;  // Logits for the last position
-		std::vector<float> logits(last_logits, last_logits + vocab_size);
+		std::vector<float> logits(logits_data, logits_data + vocab_size);  // Single token logits
 
-		// Sample the next token
 		int64_t next_token = sampleFromLogits(logits, temperature, top_k);
 		generated.push_back(next_token);
 	}
 
-	// Step 4: Detokenize back to a string
-	std::string generated_str = detokenize(generated);  // e.g., "60 - _ 62 - _"
-
-	// Step 5: Split into symbol-level tokens and take the last 32
+	std::string generated_str = detokenize(generated);
 	auto symbols = stringToSymbols(generated_str);
 	if (symbols.size() > 32) {
 		symbols = std::vector<std::string>(symbols.end() - 32, symbols.end());
@@ -185,6 +166,5 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
 	else {
 		symbols.resize(32, "_");
 	}
-
 	return symbols;
 }
