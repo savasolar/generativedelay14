@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include <onnxruntime_cxx_api.h>
+#include <nlohmann/json.hpp>
 #include <vector>
 #include <string>
 #include <map>
