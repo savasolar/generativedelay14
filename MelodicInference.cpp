@@ -13,16 +13,36 @@ MelodicInference::~MelodicInference() {}
 
 bool MelodicInference::loadModel() {
 	try {
+		// Create the ONNX Runtime environment
 		env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "MelodicInference");
+
+		// Set session options with memory optimizations
 		Ort::SessionOptions session_options;
+		// Enable extended graph optimizations to reduce memory usage
+		session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+
+		// Path to the model file
 		std::string model_path = "C:/Users/savas/Desktop/2025-02-09-melodic-nanogpt-2-onnx/melodygpt_v02_quantized.ort";
 		std::wstring wmodel_path(model_path.begin(), model_path.end());
+
+		// Load the model
 		session = std::make_unique<Ort::Session>(*env, wmodel_path.c_str(), session_options);
 		DBG("Model loaded successfully");
 		return true;
 	}
 	catch (const Ort::Exception& e) {
-		DBG("Failed to load model: " + juce::String(e.what()));
+		// Log ONNX Runtime-specific errors
+		DBG("Failed to load model (ORT Exception): " + juce::String(e.what()));
+		return false;
+	}
+	catch (const std::bad_alloc& e) {
+		// Log memory allocation failures
+		DBG("Memory allocation failed: " + juce::String(e.what()));
+		return false;
+	}
+	catch (...) {
+		// Log any other unexpected errors
+		DBG("Unknown error during model loading");
 		return false;
 	}
 }
@@ -103,31 +123,32 @@ int64_t MelodicInference::sampleFromLogits(const std::vector<float>& logits, flo
 }
 
 std::vector<std::string> MelodicInference::generate(const std::vector<std::string>& prompt, float temperature, int top_k) {
-	// Ensure the prompt is exactly 32 symbols
+	if (!session) {
+		DBG("Error: Model not loaded.");
+		return std::vector<std::string>(32, "_");
+	}
+
 	if (prompt.size() != 32) {
 		DBG("Error: Prompt must be 32 symbols, got " + juce::String(prompt.size()));
 		return std::vector<std::string>(32, "_");
 	}
 
-	DBG("Starting generation with prompt: " + symbolsToString(prompt));
+	// Step 1: Convert prompt symbols to a space-separated string
+	std::string prompt_str = symbolsToString(prompt);  // e.g., "60 - _ _"
 
-	// Convert the prompt to a string and tokenize it using the provided token_mappings.json
-	std::string prompt_str = symbolsToString(prompt);
-	std::vector<int64_t> tokens = tokenize(prompt_str);
-
-	DBG("Tokenized prompt size: " + juce::String(tokens.size()));
-
+	// Step 2: Tokenize into character-level tokens
+	std::vector<int64_t> tokens = tokenize(prompt_str);  // e.g., ['6', '0', ' ', '-', ' ', '_']
 	std::vector<int64_t> generated = tokens;
 
-	// Generate up to 128 additional tokens
+	// Step 3: Generate 128 additional character tokens
 	for (int i = 0; i < 128; ++i) {
-		// Prepare the context (last 32 tokens, padded with spaces if needed)
-		std::vector<int64_t> context(generated.end() - std::min(32ull, generated.size()), generated.end());
-		while (context.size() < 32) context.insert(context.begin(), stoi[" "]);
+		// Take the last 32 character tokens as context (or fewer if shorter)
+		size_t context_size = std::min(32ull, generated.size());
+		std::vector<int64_t> context(generated.end() - context_size, generated.end());
 
-		// Create the input tensor
+		// Create input tensor
 		Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-		std::vector<int64_t> input_shape = { 1, 32 };
+		std::vector<int64_t> input_shape = { 1, static_cast<int64_t>(context.size()) };
 		Ort::Value input_tensor = Ort::Value::CreateTensor<int64_t>(
 			memory_info, context.data(), context.size(), input_shape.data(), input_shape.size());
 
@@ -136,38 +157,34 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
 		const char* output_names[] = { "output" };
 		auto output_tensors = session->Run(Ort::RunOptions{ nullptr }, input_names, &input_tensor, 1, output_names, 1);
 
-		// Extract logits from the model's output
+		// Get logits for the last position
 		float* logits_data = output_tensors[0].GetTensorMutableData<float>();
 		auto shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-
-		if (shape.size() == 3 && shape[0] == 1 && shape[1] == 32) {
-			size_t vocab_size = shape[2]; // Should be 21 based on token_mappings.json
-			// Extract logits for the last position (next token)
-			float* last_logits = logits_data + 31 * vocab_size;
-			std::vector<float> logits(last_logits, last_logits + vocab_size);
-
-			// Optional: Print logits for debugging
-			//std::string logits_str;
-			//for (float logit : logits) logits_str += juce::String(logit) + " ";
-			//DBG("Logits for step " + juce::String(i) + ": " + logits_str);
-
-			// Sample the next token using the provided temperature and top_k
-			int64_t next_token = sampleFromLogits(logits, temperature, top_k);
-			DBG("Generated token " + juce::String(i) + ": " + juce::String(next_token));
-			generated.push_back(next_token);
-		}
-		else {
+		if (shape.size() != 3 || shape[0] != 1 || shape[1] != context.size()) {
 			DBG("Unexpected output shape: [" + juce::String(shape[0]) + ", " +
-				(shape.size() > 1 ? juce::String(shape[1]) : "0") + ", " +
-				(shape.size() > 2 ? juce::String(shape[2]) : "0") + "]");
+				juce::String(shape[1]) + ", " + juce::String(shape[2]) + "]");
 			break;
 		}
+		size_t vocab_size = shape[2];
+		float* last_logits = logits_data + (context.size() - 1) * vocab_size;  // Logits for the last position
+		std::vector<float> logits(last_logits, last_logits + vocab_size);
+
+		// Sample the next token
+		int64_t next_token = sampleFromLogits(logits, temperature, top_k);
+		generated.push_back(next_token);
 	}
 
-	// Detokenize the generated tokens and convert to symbols
-	std::string generated_str = detokenize(std::vector<int64_t>(generated.begin() + tokens.size(), generated.end()));
+	// Step 4: Detokenize back to a string
+	std::string generated_str = detokenize(generated);  // e.g., "60 - _ 62 - _"
+
+	// Step 5: Split into symbol-level tokens and take the last 32
 	auto symbols = stringToSymbols(generated_str);
-	symbols.resize(32, "_"); // Ensure exactly 32 symbols
-	DBG("Generated melody: " + symbolsToString(symbols));
+	if (symbols.size() > 32) {
+		symbols = std::vector<std::string>(symbols.end() - 32, symbols.end());
+	}
+	else {
+		symbols.resize(32, "_");
+	}
+
 	return symbols;
 }
