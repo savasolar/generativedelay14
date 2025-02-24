@@ -108,8 +108,13 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
 		return std::vector<std::string>(32, "_");
 	}
 
+	DBG("Starting generation with prompt: " + symbolsToString(prompt));
+
 	std::string prompt_str = symbolsToString(prompt);
 	std::vector<int64_t> tokens = tokenize(prompt_str);
+
+	DBG("Tokenized prompt size: " + juce::String(tokens.size()));
+
 	std::vector<int64_t> generated = tokens;
 
 	for (int i = 0; i < 128; ++i) {
@@ -130,11 +135,15 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
 		std::vector<float> logits(logits_data, logits_data + shape[1]);
 
 		int64_t next_token = sampleFromLogits(logits, temperature, top_k);
+		
+		DBG("Generated token " + juce::String(i) + ": " + juce::String(next_token));
+		
 		generated.push_back(next_token);
 	}
 
 	std::string generated_str = detokenize(std::vector<int64_t>(generated.begin() + tokens.size(), generated.end()));
 	auto symbols = stringToSymbols(generated_str);
 	symbols.resize(32, "_"); // Ensure exactly 32 symbols
+	DBG("Generated melody: " + symbolsToString(symbols));
 	return symbols;
 }

@@ -165,6 +165,7 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
         // handle melody generation
         if ((capturePosition % 32) == 0)
         {
+            DBG("Triggering melody generation");
             // send to neural net for processing based on conditions
 
             // Check if capturedMelody contains any elements that aren't underscores
@@ -334,6 +335,12 @@ void Generativedelay14AudioProcessor::generateNewMelody()
 
     // Convert capturedMelody directly
     generatedMelody = mlInference->generate(capturedMelody, temp, 200);
+
+    juce::String resultStr;
+    for (const auto& token : generatedMelody) {
+        resultStr += juce::String(token) + " ";
+    }
+    DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
 
     // Reset playback
     playbackPosition = 0;
