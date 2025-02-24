@@ -103,13 +103,15 @@ int64_t MelodicInference::sampleFromLogits(const std::vector<float>& logits, flo
 }
 
 std::vector<std::string> MelodicInference::generate(const std::vector<std::string>& prompt, float temperature, int top_k) {
+	// Ensure the prompt is exactly 32 symbols
 	if (prompt.size() != 32) {
-		DBG("Error: Prompt most be 32 symbols, got " + juce::String(prompt.size()));
+		DBG("Error: Prompt must be 32 symbols, got " + juce::String(prompt.size()));
 		return std::vector<std::string>(32, "_");
 	}
 
 	DBG("Starting generation with prompt: " + symbolsToString(prompt));
 
+	// Convert the prompt to a string and tokenize it using the provided token_mappings.json
 	std::string prompt_str = symbolsToString(prompt);
 	std::vector<int64_t> tokens = tokenize(prompt_str);
 
@@ -117,30 +119,52 @@ std::vector<std::string> MelodicInference::generate(const std::vector<std::strin
 
 	std::vector<int64_t> generated = tokens;
 
+	// Generate up to 128 additional tokens
 	for (int i = 0; i < 128; ++i) {
+		// Prepare the context (last 32 tokens, padded with spaces if needed)
 		std::vector<int64_t> context(generated.end() - std::min(32ull, generated.size()), generated.end());
 		while (context.size() < 32) context.insert(context.begin(), stoi[" "]);
 
+		// Create the input tensor
 		Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 		std::vector<int64_t> input_shape = { 1, 32 };
 		Ort::Value input_tensor = Ort::Value::CreateTensor<int64_t>(
 			memory_info, context.data(), context.size(), input_shape.data(), input_shape.size());
 
+		// Run the model
 		const char* input_names[] = { "input" };
 		const char* output_names[] = { "output" };
 		auto output_tensors = session->Run(Ort::RunOptions{ nullptr }, input_names, &input_tensor, 1, output_names, 1);
 
+		// Extract logits from the model's output
 		float* logits_data = output_tensors[0].GetTensorMutableData<float>();
 		auto shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-		std::vector<float> logits(logits_data, logits_data + shape[1]);
 
-		int64_t next_token = sampleFromLogits(logits, temperature, top_k);
-		
-		DBG("Generated token " + juce::String(i) + ": " + juce::String(next_token));
-		
-		generated.push_back(next_token);
+		if (shape.size() == 3 && shape[0] == 1 && shape[1] == 32) {
+			size_t vocab_size = shape[2]; // Should be 21 based on token_mappings.json
+			// Extract logits for the last position (next token)
+			float* last_logits = logits_data + 31 * vocab_size;
+			std::vector<float> logits(last_logits, last_logits + vocab_size);
+
+			// Optional: Print logits for debugging
+			//std::string logits_str;
+			//for (float logit : logits) logits_str += juce::String(logit) + " ";
+			//DBG("Logits for step " + juce::String(i) + ": " + logits_str);
+
+			// Sample the next token using the provided temperature and top_k
+			int64_t next_token = sampleFromLogits(logits, temperature, top_k);
+			DBG("Generated token " + juce::String(i) + ": " + juce::String(next_token));
+			generated.push_back(next_token);
+		}
+		else {
+			DBG("Unexpected output shape: [" + juce::String(shape[0]) + ", " +
+				(shape.size() > 1 ? juce::String(shape[1]) : "0") + ", " +
+				(shape.size() > 2 ? juce::String(shape[2]) : "0") + "]");
+			break;
+		}
 	}
 
+	// Detokenize the generated tokens and convert to symbols
 	std::string generated_str = detokenize(std::vector<int64_t>(generated.begin() + tokens.size(), generated.end()));
 	auto symbols = stringToSymbols(generated_str);
 	symbols.resize(32, "_"); // Ensure exactly 32 symbols
