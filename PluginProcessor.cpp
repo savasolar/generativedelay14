@@ -11,8 +11,7 @@ Generativedelay14AudioProcessor::Generativedelay14AudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       ),
-    flaskURL("http://localhost:5000/generate_text")
+                       )
 #endif
 {
     pluginFormatManager.addDefaultFormats();
@@ -306,35 +305,25 @@ void Generativedelay14AudioProcessor::clearPlugin()
 
 void Generativedelay14AudioProcessor::generateNewMelody()
 {
-    // Initialize ML inference if not already done
-    if (!mlInference)
-    {
-        DBG("Captured melody: (PluginProcessor)");
+    DBG("Captured melody: (PluginProcessor)");
 
-        juce::String melodyStr;
-        for (const auto& token : capturedMelody) {
-            melodyStr += juce::String(token) + " ";
-        }
-        DBG("Input melody: " + melodyStr.trimEnd());
+    juce::String melodyStr;
+    for (const auto& token : capturedMelody) {
+        melodyStr += juce::String(token) + " ";
+    }
+    DBG("Input melody: " + melodyStr.trimEnd());
 
-        DBG("abt to load model");
+    // load model ONCE, when the plugin STARTS, and just have it wait for prompts
 
-        mlInference = std::make_unique<MelodicInference>();
-        if (!mlInference->loadModel()) {
-            DBG("Failed to load model");
-            return;
-        }
-
-        juce::String resultStr;
-        for (const auto& token : generatedMelody) {
-            resultStr += juce::String(token) + " ";
-        }
-//        DBG("Generated melody (PluginProcessor): " + resultStr.trimEnd());
-
+    juce::String resultStr;
+    for (const auto& token : generatedMelody) {
+        resultStr += juce::String(token) + " ";
     }
 
-    // Convert capturedMelody directly
-    generatedMelody = mlInference->generate(capturedMelody, temp, 200);
+
+    // run inference here
+    // generatedMelody = ...
+
 
     juce::String resultStr;
     for (const auto& token : generatedMelody) {
