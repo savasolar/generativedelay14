@@ -19,47 +19,12 @@ Generativedelay14AudioProcessor::Generativedelay14AudioProcessor()
     juce::File pluginFile = juce::File::getSpecialLocation(juce::File::currentApplicationFile);
     melodyServiceExe = pluginFile.getSiblingFile("melody_service.exe");
 
-    
-    // Check if the melody service exists
-    if (melodyServiceExe.existsAsFile())
-    {
-        DBG("Starting melody service from: " + melodyServiceExe.getFullPathName());
-
-        // Create melody service process
-        melodyService = std::make_unique<juce::ChildProcess>();
-
-        // Start the process with redirected output
-        bool started = melodyService->start(melodyServiceExe.getFullPathName(),
-            juce::ChildProcess::wantStdOut);
-
-        if (started)
-            DBG("Melody service started successfully!");
-        else
-            DBG("Failed to start melody service!");
-    }
+ 
 }
 
 Generativedelay14AudioProcessor::~Generativedelay14AudioProcessor()
 {
-    // Clean up melody service
-    if (melodyService != nullptr && melodyService->isRunning())
-    {
-        DBG("Shutting down melody service...");
-        melodyService->kill();
-
-        // Optional: Wait briefly to ensure the process has terminated
-        int waitCount = 0;
-        while (melodyService->isRunning() && waitCount < 10)
-        {
-            juce::Thread::sleep(100);
-            waitCount++;
-        }
-
-        if (melodyService->isRunning())
-            DBG("WARNING: Melody service failed to terminate cleanly!");
-        else
-            DBG("Melody service terminated successfully.");
-    }
+ 
 
 }
 
@@ -248,7 +213,7 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     captureCounter += buffer.getNumSamples();
 
     // async communication
-    processServiceCommunication();
+
 
     // Update generated melody if ready
     
@@ -346,6 +311,8 @@ void Generativedelay14AudioProcessor::clearPlugin()
 }
 
 
+
+
 void Generativedelay14AudioProcessor::generateNewMelody()
 {
     DBG("Captured melody: (PluginProcessor)");
@@ -354,10 +321,10 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     for (const auto& token : capturedMelody) {
         melodyStr += juce::String(token) + " ";
     }
-    DBG("Input melody: " + melodyStr.trimEnd());
+    melodyStr = melodyStr.trimEnd();
+    DBG("Input melody: " + melodyStr);
 
-    
-
+    // process melody
 
 
 
@@ -365,40 +332,10 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     bottleCap = false;
 }
 
-void Generativedelay14AudioProcessor::processServiceCommunication() {
-    
-    // Check if service is still running
-    if (melodyService != nullptr && !melodyService->isRunning())
-    {
-        DBG("WARNING: Melody service has terminated unexpectedly. Attempting to restart...");
 
-        // Attempt to restart the service
-        if (melodyServiceExe.existsAsFile())
-        {
-            bool started = melodyService->start(melodyServiceExe.getFullPathName());
-            if (started)
-                DBG("Melody service restarted successfully!");
-            else
-                DBG("Failed to restart melody service!");
-        }
-    }
 
-    // Read and display console output from the melody service
-    if (melodyService != nullptr && melodyService->isRunning())
-    {
-        juce::String output = melodyService->readAllProcessOutput();
-        if (output.isNotEmpty())
-        {
-            // Split by line breaks to get each line of output
-            juce::StringArray lines = juce::StringArray::fromLines(output);
-            for (const juce::String& line : lines)
-            {
-                if (line.isNotEmpty())
-                    DBG("Melody Service: " + line);
-            }
-        }
-    }
-}
+
+
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {

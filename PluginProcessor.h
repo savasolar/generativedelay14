@@ -95,7 +95,6 @@ private:
     std::unique_ptr<juce::ChildProcess> melodyService;
 
 
-    void processServiceCommunication();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Generativedelay14AudioProcessor)
 };
