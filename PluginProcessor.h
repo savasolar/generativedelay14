@@ -2,6 +2,12 @@
 
 #include <JuceHeader.h>
 //#include <atomic>
+#include <queue>
+#include <atomic>
+//#include <processthreadsapi.h>
+//#include <namedpipeapi.h>
+#define NOMINMAX
+#include <Windows.h>
 
 class Generativedelay14AudioProcessor  : public juce::AudioProcessor
 {
@@ -90,10 +96,33 @@ private:
     // Generation control
     bool bottleCap = true;
 
-    // Melody service
+    // Melody service integration
     juce::File melodyServiceExe;
-    std::unique_ptr<juce::ChildProcess> melodyService;
+    bool launchMelodyService();
+    void shutdownMelodyService();
 
+    // Process handles and pipes
+    HANDLE hChildStdinRd = nullptr, hChildStdinWr = nullptr;
+    HANDLE hChildStdoutRd = nullptr, hChildStdoutWr = nullptr;
+    PROCESS_INFORMATION pi{};
+
+    // Background thread for reading output
+    class OutputReaderThread : public juce::Thread
+    {
+    public:
+        OutputReaderThread(HANDLE hPipe, std::queue<std::string>& queue, juce::CriticalSection& cs)
+            : Thread("OutputReader"), hPipe(hPipe), responseQueue(queue), cs(cs) {}
+        void run() override;
+    
+    private:
+        HANDLE hPipe;
+        std::queue<std::string>& responseQueue;
+        juce::CriticalSection& cs;
+    };
+
+    std::unique_ptr<OutputReaderThread> outputReaderThread;
+    std::queue<std::string> responseQueue;
+    juce::CriticalSection responseQueueMutex;
 
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Generativedelay14AudioProcessor)

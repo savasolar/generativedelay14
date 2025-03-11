@@ -18,14 +18,115 @@ Generativedelay14AudioProcessor::Generativedelay14AudioProcessor()
 
     juce::File pluginFile = juce::File::getSpecialLocation(juce::File::currentApplicationFile);
     melodyServiceExe = pluginFile.getSiblingFile("melody_service.exe");
-
- 
 }
 
 Generativedelay14AudioProcessor::~Generativedelay14AudioProcessor()
 {
- 
+    shutdownMelodyService();
+}
 
+bool Generativedelay14AudioProcessor::launchMelodyService()
+{
+    shutdownMelodyService();
+    if (!melodyServiceExe.existsAsFile())
+    {
+        DBG("melody_service.exe not found at: " + melodyServiceExe.getFullPathName());
+        return false;
+    }
+
+    SECURITY_ATTRIBUTES saAttr = { sizeof(SECURITY_ATTRIBUTES), NULL, TRUE };
+    if (!CreatePipe(&hChildStdoutRd, &hChildStdoutWr, &saAttr, 0) ||
+        !SetHandleInformation(hChildStdoutRd, HANDLE_FLAG_INHERIT, 0))
+    {
+        DBG("Pipe setup failed: " + juce::String(GetLastError()));
+        return false;
+    }
+
+    STARTUPINFO si = { sizeof(STARTUPINFO) };
+    si.hStdOutput = hChildStdoutWr;
+    si.hStdError = hChildStdoutWr;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+    juce::String exePath = melodyServiceExe.getFullPathName();
+    std::vector<char> exePathBuffer(exePath.toStdString().begin(), exePath.toStdString().end());
+    exePathBuffer.push_back('\0');
+
+    if (!CreateProcess(exePathBuffer.data(), NULL, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+    {
+        DBG("CreateProcess failed: " + juce::String(GetLastError()));
+        CloseHandle(hChildStdoutRd);
+        CloseHandle(hChildStdoutWr);
+        return false;
+    }
+
+    CloseHandle(hChildStdoutWr);
+    hChildStdoutWr = nullptr;
+
+    outputReaderThread = std::make_unique<OutputReaderThread>(hChildStdoutRd, responseQueue, responseQueueMutex);
+    outputReaderThread->startThread();
+    return true;
+}
+
+void Generativedelay14AudioProcessor::shutdownMelodyService()
+{
+    DBG("Shutting down melody service...");
+
+    // Stop the thread first
+    if (outputReaderThread)
+    {
+        // Close the pipe to unblock ReadFile
+        if (hChildStdoutRd)
+        {
+            CloseHandle(hChildStdoutRd);
+            hChildStdoutRd = nullptr;
+        }
+        outputReaderThread->stopThread(2000); // Wait up to 2 seconds
+        outputReaderThread.reset();
+        DBG("OutputReaderThread stopped");
+    }
+
+    // Kill the process
+    if (pi.hProcess)
+    {
+        TerminateProcess(pi.hProcess, 0);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        pi.hProcess = nullptr;
+        pi.hThread = nullptr;
+        DBG("melody_service.exe terminated");
+    }
+
+    DBG("Shutdown complete");
+}
+
+void Generativedelay14AudioProcessor::OutputReaderThread::run()
+{
+    char buffer[1024];
+    DWORD bytesRead;
+
+    while (!threadShouldExit())
+    {
+        if (ReadFile(hPipe, buffer, sizeof(buffer) - 1, &bytesRead, NULL))
+        {
+            buffer[bytesRead] = '\0';
+            std::string output(buffer);
+            {
+                juce::ScopedLock lock(cs);
+                responseQueue.push(output);
+            }
+            DBG("melody_service.exe: " + juce::String(output));
+        }
+        else
+        {
+            if (GetLastError() == ERROR_BROKEN_PIPE)
+            {
+                DBG("Pipe closed, exiting thread");
+                break;
+            }
+            DBG("ReadFile failed: " + juce::String(GetLastError()));
+            juce::Thread::sleep(10);
+        }
+    }
 }
 
 const juce::String Generativedelay14AudioProcessor::getName() const { return JucePlugin_Name; }
@@ -68,6 +169,11 @@ void Generativedelay14AudioProcessor::prepareToPlay (double sampleRate, int samp
     {
         innerPlugin->setRateAndBufferSizeDetails(sampleRate, samplesPerBlock);
         innerPlugin->prepareToPlay(sampleRate, samplesPerBlock);
+    }
+
+    if (!launchMelodyService())
+    {
+        DBG("Could not start melody_service.exe. Melody generation will be disabled.");
     }
 }
 
@@ -182,29 +288,54 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
         }
 
         // add playback functionality for generated melodies on a symbol-by-symbol basis
+        //if (!generatedMelody.empty())
+        //{
+        //    const std::string& currentSymbol = generatedMelody[playbackPosition % generatedMelody.size()];
+
+        //    // Handle current note state first
+        //    if (playbackNoteActive && currentSymbol != "-")
+        //    {
+        //        // Stop current note if we're not continuing it
+        //        midiMessages.addEvent(juce::MidiMessage::noteOff(2, playbackNote), 0);
+        //        playbackNoteActive = false;
+        //    }
+
+        //    // Process new symbol
+        //    if (std::all_of(currentSymbol.begin(), currentSymbol.end(), ::isdigit))
+        //    {
+        //        // Start new note
+        //        playbackNote = std::stoi(currentSymbol);
+        //        midiMessages.addEvent(juce::MidiMessage::noteOn(2, playbackNote, (uint8_t)vel), 0);
+        //        playbackNoteActive = true;
+        //    }
+        //    // Note: for "-" we do nothing (continues current note)
+        //    // Note: for "_" we've already handled any needed note-off above
+        //    playbackPosition++;
+        //}
+
         if (!generatedMelody.empty())
         {
-
             const std::string& currentSymbol = generatedMelody[playbackPosition % generatedMelody.size()];
 
-            // Handle current note state first
             if (playbackNoteActive && currentSymbol != "-")
             {
-                // Stop current note if we're not continuing it
                 midiMessages.addEvent(juce::MidiMessage::noteOff(2, playbackNote), 0);
                 playbackNoteActive = false;
             }
 
-            // Process new symbol
-            if (std::all_of(currentSymbol.begin(), currentSymbol.end(), ::isdigit))
+            if (currentSymbol != "_" && currentSymbol != "-")
             {
-                // Start new note
-                playbackNote = std::stoi(currentSymbol);
-                midiMessages.addEvent(juce::MidiMessage::noteOn(2, playbackNote, (uint8_t)vel), 0);
-                playbackNoteActive = true;
+                try
+                {
+                    playbackNote = std::stoi(currentSymbol);
+                    midiMessages.addEvent(juce::MidiMessage::noteOn(2, playbackNote, (uint8_t)vel), 0);
+                    playbackNoteActive = true;
+                }
+                catch (const std::exception& e)
+                {
+                    DBG("Invalid symbol: " + juce::String(currentSymbol) + " - " + e.what());
+                }
             }
-            // Note: for "-" we do nothing (continues current note)
-            // Note: for "_" we've already handled any needed note-off above
             playbackPosition++;
         }
 
@@ -212,12 +343,35 @@ void Generativedelay14AudioProcessor::processBlock (juce::AudioBuffer<float>& bu
     }
     captureCounter += buffer.getNumSamples();
 
-    // async communication
 
 
-    // Update generated melody if ready
-    
 
+    // process responses from melody_service.exe
+    std::string response;
+    {
+        juce::ScopedLock lock(responseQueueMutex);
+        if (!responseQueue.empty())
+        {
+            response = responseQueue.front();
+            responseQueue.pop();
+        }
+    }
+    if (!response.empty())
+    {
+        DBG("melody_service.exe: " + juce::String(response));
+        // If the response is a generated melody, parse it
+        if (response.find(" ") != std::string::npos) // Basic check for melody format
+        {
+            std::istringstream iss(response);
+            std::string token;
+            generatedMelody.clear();
+            while (iss >> token)
+            {
+                generatedMelody.push_back(token);
+            }
+            playbackPosition = 0; // Reset playback for new melody
+        }
+    }
 
 
 
@@ -324,9 +478,27 @@ void Generativedelay14AudioProcessor::generateNewMelody()
     melodyStr = melodyStr.trimEnd();
     DBG("Input melody: " + melodyStr);
 
-    // process melody
+    // Construct the prompt with parameters
+    juce::String prompt = melodyStr + "|" + juce::String(temp) + "|1000\n"; // Adding newline to signal end of input
+    std::string promptStr = prompt.toStdString();
 
-
+    // Send the prompt to melody_service.exe
+    if (hChildStdinWr)
+    {
+        DWORD bytesWritten;
+        if (!WriteFile(hChildStdinWr, promptStr.c_str(), promptStr.length(), &bytesWritten, NULL))
+        {
+            DBG("Failed to write to melody_service.exe: " + juce::String(GetLastError()));
+        }
+        else
+        {
+            DBG("Sent prompt to melody_service.exe: " + prompt);
+        }
+    }
+    else
+    {
+        DBG("Cannot send prompt: melody_service.exe not running");
+    }
 
     playbackPosition = 0;
     bottleCap = false;
